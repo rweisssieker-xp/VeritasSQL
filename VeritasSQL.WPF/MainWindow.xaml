@@ -1,0 +1,299 @@
+﻿<Window x:Class="VeritasSQL.WPF.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:VeritasSQL.WPF"
+        xmlns:avalonEdit="http://icsharpcode.net/sharpdevelop/avalonedit"
+        mc:Ignorable="d"
+        Title="VeritasSQL - Natural Language to SQL" 
+        Height="900" Width="1400"
+        WindowStartupLocation="CenterScreen">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Top Bar: Connection -->
+        <Border Grid.Row="0" Background="#F5F5F5" BorderBrush="#DDD" BorderThickness="0,0,0,1" Padding="10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="300"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="Connection:" VerticalAlignment="Center" Margin="5"/>
+                <ComboBox Grid.Column="1" 
+                          ItemsSource="{Binding ConnectionProfiles}"
+                          SelectedItem="{Binding SelectedConnectionProfile}"
+                          DisplayMemberPath="Name"
+                          IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
+                <Button Grid.Column="2" Content="Connect" Command="{Binding ConnectCommand}"
+                        ToolTip="Connect to the selected database"/>
+                <Button Grid.Column="3" Content="Load Schema" Command="{Binding LoadSchemaCommand}" 
+                        IsEnabled="{Binding IsConnected}"
+                        ToolTip="Load database schema (tables, views, columns)"/>
+
+                <StackPanel Grid.Column="4" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <TextBlock Text="Status:" VerticalAlignment="Center" Margin="5"/>
+                    <Ellipse Width="10" Height="10" Margin="5" VerticalAlignment="Center">
+                        <Ellipse.Fill>
+                            <SolidColorBrush Color="{Binding IsConnected, Converter={StaticResource BoolToColorConverter}}"/>
+                        </Ellipse.Fill>
+                    </Ellipse>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Main Content -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="250"/>
+                <ColumnDefinition Width="5"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="5"/>
+                <ColumnDefinition Width="300"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left Panel: Schema Tree -->
+            <Border Grid.Column="0" BorderBrush="#DDD" BorderThickness="0,0,1,0">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="Database Schema" FontWeight="Bold" 
+                               Padding="10" Background="#F5F5F5"/>
+                    <TextBox DockPanel.Dock="Top" x:Name="SchemaFilterBox" 
+                             Margin="5" Padding="5"
+                             Text="" 
+                             TextChanged="SchemaFilterBox_TextChanged"/>
+                    <TreeView x:Name="SchemaTreeView" Margin="5">
+                        <!-- Schema populated programmatically -->
+                    </TreeView>
+                </DockPanel>
+            </Border>
+
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"/>
+
+            <!-- Center Panel: Query & Results -->
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="150"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Natural Language Input -->
+                <DockPanel Grid.Row="0" Margin="10">
+                    <Button DockPanel.Dock="Right" Content="Generate SQL" 
+                            Command="{Binding GenerateSqlCommand}"
+                            Height="60" Width="120" Margin="5,0,0,0"
+                            ToolTip="Generate SQL SELECT statement from natural language question using OpenAI"/>
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="Your question in natural language:" 
+                                   FontWeight="Bold" Margin="0,0,0,5"/>
+                        <TextBox Text="{Binding NaturalLanguageQuery, UpdateSourceTrigger=PropertyChanged}"
+                                 TextWrapping="Wrap" AcceptsReturn="True"
+                                 Height="60"/>
+                    </DockPanel>
+                </DockPanel>
+
+                <!-- SQL Editor -->
+                <DockPanel Grid.Row="1" Margin="10,0,10,10">
+                    <DockPanel DockPanel.Dock="Top">
+                        <Button DockPanel.Dock="Right" Content="Execute" 
+                                Command="{Binding ExecuteQueryCommand}"
+                                Background="#4CAF50" Foreground="White"
+                                Width="100" Margin="5,0,0,5"
+                                ToolTip="Execute SQL query on database (only SELECT allowed)"/>
+                        <TextBlock Text="Generated SQL:" FontWeight="Bold" 
+                                   VerticalAlignment="Center" Margin="0,0,0,5"/>
+                    </DockPanel>
+                    <Border BorderBrush="#DDD" BorderThickness="1">
+                        <avalonEdit:TextEditor x:Name="SqlEditor"
+                                              FontFamily="Consolas" FontSize="12"
+                                              ShowLineNumbers="True"
+                                              SyntaxHighlighting="SQL"
+                                              WordWrap="False"
+                                              Document="{Binding GeneratedSql, Converter={StaticResource TextToDocumentConverter}}"/>
+                    </Border>
+                </DockPanel>
+
+                <!-- Tab Control -->
+                <TabControl Grid.Row="3" Margin="10,0,10,10" 
+                            SelectedIndex="{Binding SelectedTabIndex}">
+                    <!-- Results Tab -->
+                    <TabItem Header="Results">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5">
+                                <TextBlock Text="Rows:" FontWeight="Bold" Margin="5"/>
+                                <TextBlock Text="{Binding ResultRowCount}" Margin="5"/>
+                                <TextBlock Text="Execution Time:" FontWeight="Bold" Margin="20,5,5,5"/>
+                                <TextBlock Text="{Binding ExecutionTime}" Margin="5"/>
+                                <Button Content="Export as CSV" 
+                                        Command="{Binding ExportToCsvCommand}" 
+                                        Margin="20,0,5,0"
+                                        ToolTip="Export results as CSV file with metadata"/>
+                                <Button Content="Export as Excel" 
+                                        Command="{Binding ExportToExcelCommand}"
+                                        ToolTip="Export results as Excel file (.xlsx) with formatting"/>
+                            </StackPanel>
+
+                            <DataGrid Grid.Row="1" 
+                                     ItemsSource="{Binding QueryResults.DefaultView}"
+                                     AutoGenerateColumns="True"
+                                     IsReadOnly="True"
+                                     AlternatingRowBackground="#F9F9F9"
+                                     GridLinesVisibility="All"
+                                     CanUserSortColumns="True"
+                                     Margin="5"/>
+                        </Grid>
+                    </TabItem>
+
+                    <!-- History Tab -->
+                    <TabItem Header="History">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5">
+                                <Button Content="Refresh" Command="{Binding RefreshHistoryCommand}"/>
+                                <TextBox Width="200" Margin="10,0,0,0" x:Name="HistorySearchBox"/>
+                                <Button Content="Search" Margin="5,0,0,0"/>
+                            </StackPanel>
+
+                            <ListView Grid.Row="1" ItemsSource="{Binding History}" Margin="5">
+                                <ListView.View>
+                                    <GridView>
+                                        <GridViewColumn Header="Time" Width="140" 
+                                                       DisplayMemberBinding="{Binding ExecutedAt, StringFormat={}{0:MM/dd/yyyy HH:mm}}"/>
+                                        <GridViewColumn Header="Question" Width="300" DisplayMemberBinding="{Binding NaturalLanguageQuery}"/>
+                                        <GridViewColumn Header="Data Source" Width="120" DisplayMemberBinding="{Binding ConnectionProfileName}"/>
+                                        <GridViewColumn Header="Rows" Width="60" DisplayMemberBinding="{Binding RowCount}"/>
+                                        <GridViewColumn Header="Time (ms)" Width="80" DisplayMemberBinding="{Binding ExecutionTimeMs, StringFormat={}{0:F0}}"/>
+                                    </GridView>
+                                </ListView.View>
+                                <ListView.ItemContainerStyle>
+                                    <Style TargetType="ListViewItem">
+                                        <EventSetter Event="MouseDoubleClick" Handler="HistoryItem_DoubleClick"/>
+                                    </Style>
+                                </ListView.ItemContainerStyle>
+                            </ListView>
+                        </Grid>
+                    </TabItem>
+
+                    <!-- Favorites Tab -->
+                    <TabItem Header="Favorites">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <Button Grid.Row="0" Content="Refresh" 
+                                   Command="{Binding RefreshFavoritesCommand}"
+                                   HorizontalAlignment="Left" Margin="5"/>
+
+                            <ListView Grid.Row="1" ItemsSource="{Binding Favorites}" Margin="5">
+                                <ListView.View>
+                                    <GridView>
+                                        <GridViewColumn Header="Name" Width="200" DisplayMemberBinding="{Binding FavoriteName}"/>
+                                        <GridViewColumn Header="Description" Width="300" DisplayMemberBinding="{Binding FavoriteDescription}"/>
+                                        <GridViewColumn Header="Data Source" Width="120" DisplayMemberBinding="{Binding ConnectionProfileName}"/>
+                                    </GridView>
+                                </ListView.View>
+                                <ListView.ItemContainerStyle>
+                                    <Style TargetType="ListViewItem">
+                                        <EventSetter Event="MouseDoubleClick" Handler="FavoriteItem_DoubleClick"/>
+                                    </Style>
+                                </ListView.ItemContainerStyle>
+                            </ListView>
+                        </Grid>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+
+            <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch"/>
+
+            <!-- Right Panel: Validation & Explanation -->
+            <Border Grid.Column="4" BorderBrush="#DDD" BorderThickness="1,0,0,0">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="Validation &amp; Explanation" FontWeight="Bold" 
+                               Padding="10" Background="#F5F5F5"/>
+                    
+                    <!-- Validation Results -->
+                    <GroupBox DockPanel.Dock="Top" Header="Validation Results" Margin="10">
+                        <ItemsControl ItemsSource="{Binding ValidationResult.Issues}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="5" Margin="2" BorderThickness="1" 
+                                            BorderBrush="{Binding Severity, Converter={StaticResource SeverityToColorConverter}}"
+                                            Background="{Binding Severity, Converter={StaticResource SeverityToBackgroundConverter}}">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Message}" FontWeight="Bold" TextWrapping="Wrap"/>
+                                            <TextBlock Text="{Binding Suggestion}" 
+                                                      FontStyle="Italic" TextWrapping="Wrap"
+                                                      Visibility="{Binding Suggestion, Converter={StaticResource NullToVisibilityConverter}}"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </GroupBox>
+
+                    <!-- Explanation -->
+                    <GroupBox Header="Explanation" Margin="10">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Top" 
+                                   Content="Explain SQL" 
+                                   Command="{Binding ExplainSqlCommand}"
+                                   HorizontalAlignment="Left"
+                                   Margin="5"
+                                   ToolTip="Generate natural language explanation of the SQL statement using OpenAI"/>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <TextBlock Text="{Binding Explanation}" 
+                                          TextWrapping="Wrap" Padding="5"/>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </GroupBox>
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="2" Background="#F5F5F5" BorderBrush="#DDD" BorderThickness="0,1,0,0" Padding="10,5">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="{Binding StatusMessage}" VerticalAlignment="Center"/>
+                <ProgressBar Grid.Column="1" Width="150" Height="20" 
+                            IsIndeterminate="True"
+                            Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibilityConverter}}"/>
+            </Grid>
+        </Border>
+    </Grid>
+
+    <!-- Converter Resources -->
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <local:InverseBoolConverter x:Key="InverseBoolConverter"/>
+        <local:BoolToColorConverter x:Key="BoolToColorConverter"/>
+        <local:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
+        <local:SeverityToColorConverter x:Key="SeverityToColorConverter"/>
+        <local:SeverityToBackgroundConverter x:Key="SeverityToBackgroundConverter"/>
+        <local:TextToDocumentConverter x:Key="TextToDocumentConverter"/>
+    </Window.Resources>
+</Window>
