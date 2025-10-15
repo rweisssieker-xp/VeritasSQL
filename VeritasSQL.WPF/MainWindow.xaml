@@ -9,6 +9,18 @@
         Title="VeritasSQL - Natural Language to SQL" 
         Height="900" Width="1400"
         WindowStartupLocation="CenterScreen">
+    
+    <!-- Converter Resources -->
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <local:InverseBoolConverter x:Key="InverseBoolConverter"/>
+        <local:BoolToColorConverter x:Key="BoolToColorConverter"/>
+        <local:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
+        <local:SeverityToColorConverter x:Key="SeverityToColorConverter"/>
+        <local:SeverityToBackgroundConverter x:Key="SeverityToBackgroundConverter"/>
+        <local:TextToDocumentConverter x:Key="TextToDocumentConverter"/>
+    </Window.Resources>
+    
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -285,15 +297,4 @@
             </Grid>
         </Border>
     </Grid>
-
-    <!-- Converter Resources -->
-    <Window.Resources>
-        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
-        <local:InverseBoolConverter x:Key="InverseBoolConverter"/>
-        <local:BoolToColorConverter x:Key="BoolToColorConverter"/>
-        <local:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
-        <local:SeverityToColorConverter x:Key="SeverityToColorConverter"/>
-        <local:SeverityToBackgroundConverter x:Key="SeverityToBackgroundConverter"/>
-        <local:TextToDocumentConverter x:Key="TextToDocumentConverter"/>
-    </Window.Resources>
 </Window>
