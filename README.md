@@ -1,0 +1,2 @@
+# VeritasSQL
+Speech to SQL
