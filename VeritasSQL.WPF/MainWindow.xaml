@@ -72,19 +72,137 @@
                 <ColumnDefinition Width="300"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Left Panel: Schema Tree -->
+            <!-- Left Panel: Schema Tree & AI Features -->
             <Border Grid.Column="0" BorderBrush="#DDD" BorderThickness="0,0,1,0">
-                <DockPanel>
-                    <TextBlock DockPanel.Dock="Top" Text="Database Schema" FontWeight="Bold" 
-                               Padding="10" Background="#F5F5F5"/>
-                    <TextBox DockPanel.Dock="Top" x:Name="SchemaFilterBox" 
-                             Margin="5" Padding="5"
-                             Text="" 
-                             TextChanged="SchemaFilterBox_TextChanged"/>
-                    <TreeView x:Name="SchemaTreeView" Margin="5">
-                        <!-- Schema populated programmatically -->
-                    </TreeView>
-                </DockPanel>
+                <TabControl>
+                    <!-- Schema Tab -->
+                    <TabItem Header="Schema">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top" Margin="5">
+                                <Button Content="🤖 AI Schema Insights"
+                                        Command="{Binding ExplainSchemaCommand}"
+                                        Margin="0,5"
+                                        ToolTip="Get AI-powered explanation of database structure and relationships"/>
+                                <Button Content="🎯 Smart Filters"
+                                        Command="{Binding GenerateSmartFiltersCommand}"
+                                        CommandParameter="{Binding SelectedItem.Header, ElementName=SchemaTreeView}"
+                                        Margin="0,5"
+                                        ToolTip="Generate AI-powered filter suggestions for selected table"/>
+                            </StackPanel>
+                            <TextBox DockPanel.Dock="Top" x:Name="SchemaFilterBox"
+                                     Margin="5" Padding="5"
+                                     Text=""
+                                     TextChanged="SchemaFilterBox_TextChanged"
+                                     ToolTip="Filter schema objects"/>
+                            <TreeView x:Name="SchemaTreeView" Margin="5">
+                                <!-- Schema populated programmatically -->
+                            </TreeView>
+                        </DockPanel>
+                    </TabItem>
+
+                    <!-- AI Query Suggestions Tab -->
+                    <TabItem Header="💡 Suggestions">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Top" Content="Generate AI Query Suggestions"
+                                    Command="{Binding GenerateQuerySuggestionsCommand}"
+                                    Margin="10"
+                                    ToolTip="AI generates intelligent query suggestions based on your schema"/>
+
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding QuerySuggestions}" Margin="5">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="#DDD" BorderThickness="1"
+                                                    Margin="5" Padding="10" CornerRadius="5"
+                                                    Background="#FAFAFA">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Title}"
+                                                              FontWeight="Bold" FontSize="13"/>
+                                                    <TextBlock Text="{Binding Description}"
+                                                              TextWrapping="Wrap" Margin="0,5"
+                                                              FontStyle="Italic"/>
+                                                    <TextBlock Text="{Binding NaturalLanguageQuery}"
+                                                              TextWrapping="Wrap" Margin="0,5"
+                                                              Foreground="#0066CC"/>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                                                        <Border Background="#E3F2FD" Padding="5,2" CornerRadius="3" Margin="0,0,5,0">
+                                                            <TextBlock Text="{Binding Category}" FontSize="10"/>
+                                                        </Border>
+                                                        <Border Background="#FFF9C4" Padding="5,2" CornerRadius="3">
+                                                            <TextBlock Text="{Binding Complexity}" FontSize="10"/>
+                                                        </Border>
+                                                    </StackPanel>
+                                                    <Button Content="Use This Query"
+                                                            Command="{Binding DataContext.ApplyQuerySuggestionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            Margin="0,8,0,0"
+                                                            Background="#4CAF50" Foreground="White"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </TabItem>
+
+                    <!-- Schema Insights Tab -->
+                    <TabItem Header="📚 Insights">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Top" Content="Refresh Schema Insights"
+                                    Command="{Binding ExplainSchemaCommand}"
+                                    Margin="10"
+                                    ToolTip="Get AI explanation of database relationships"/>
+
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <TextBlock Text="{Binding SchemaInsights}"
+                                          TextWrapping="Wrap" Padding="10"
+                                          FontFamily="Segoe UI"/>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </TabItem>
+
+                    <!-- Smart Filters Tab -->
+                    <TabItem Header="🎯 Filters">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top"
+                                      Text="Select a table in Schema tab, then generate smart filters"
+                                      Padding="10" TextWrapping="Wrap"
+                                      Foreground="Gray" FontStyle="Italic"/>
+
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding SmartFilters}" Margin="5">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="#DDD" BorderThickness="1"
+                                                    Margin="5" Padding="8" CornerRadius="3"
+                                                    Background="#F9F9F9">
+                                                <StackPanel>
+                                                    <TextBlock FontWeight="Bold">
+                                                        <Run Text="{Binding Column}"/>
+                                                        <Run Text=" (" Foreground="Gray"/>
+                                                        <Run Text="{Binding FilterType}" Foreground="Gray"/>
+                                                        <Run Text=")" Foreground="Gray"/>
+                                                    </TextBlock>
+                                                    <TextBlock Text="{Binding SuggestedValue}"
+                                                              Foreground="#0066CC" Margin="0,3"/>
+                                                    <TextBlock Text="{Binding Reason}"
+                                                              TextWrapping="Wrap" FontSize="11"
+                                                              Foreground="Gray" Margin="0,3"/>
+                                                    <Button Content="Apply Filter"
+                                                            Command="{Binding DataContext.ApplySmartFilterCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            Margin="0,5,0,0"
+                                                            Background="#2196F3" Foreground="White"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </TabItem>
+                </TabControl>
             </Border>
 
             <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"/>
@@ -143,6 +261,7 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
                             <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5">
@@ -150,16 +269,21 @@
                                 <TextBlock Text="{Binding ResultRowCount}" Margin="5"/>
                                 <TextBlock Text="Execution Time:" FontWeight="Bold" Margin="20,5,5,5"/>
                                 <TextBlock Text="{Binding ExecutionTime}" Margin="5"/>
-                                <Button Content="Export as CSV" 
-                                        Command="{Binding ExportToCsvCommand}" 
+                                <Button Content="Export as CSV"
+                                        Command="{Binding ExportToCsvCommand}"
                                         Margin="20,0,5,0"
                                         ToolTip="Export results as CSV file with metadata"/>
-                                <Button Content="Export as Excel" 
+                                <Button Content="Export as Excel"
                                         Command="{Binding ExportToExcelCommand}"
                                         ToolTip="Export results as Excel file (.xlsx) with formatting"/>
+                                <Button Content="🤖 AI Data Insights"
+                                        Command="{Binding AnalyzeDataInsightsCommand}"
+                                        Margin="20,0,5,0"
+                                        Background="#FF9800" Foreground="White"
+                                        ToolTip="Get AI-powered insights about data quality, patterns, and anomalies"/>
                             </StackPanel>
 
-                            <DataGrid Grid.Row="1" 
+                            <DataGrid Grid.Row="1"
                                      ItemsSource="{Binding QueryResults.DefaultView}"
                                      AutoGenerateColumns="True"
                                      IsReadOnly="True"
@@ -167,6 +291,88 @@
                                      GridLinesVisibility="All"
                                      CanUserSortColumns="True"
                                      Margin="5"/>
+
+                            <!-- AI Data Insights Panel -->
+                            <Expander Grid.Row="2"
+                                     Header="🤖 AI Data Insights"
+                                     IsExpanded="True"
+                                     Visibility="{Binding DataInsights, Converter={StaticResource NullToVisibilityConverter}}"
+                                     Margin="5">
+                                <Border BorderBrush="#FF9800" BorderThickness="2" Padding="10"
+                                        Background="#FFF3E0">
+                                    <ScrollViewer MaxHeight="250" VerticalScrollBarVisibility="Auto">
+                                        <StackPanel>
+                                            <!-- Summary -->
+                                            <TextBlock Text="{Binding DataInsights.Summary}"
+                                                      FontWeight="Bold" FontSize="13"
+                                                      TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                            <!-- Insights -->
+                                            <TextBlock Text="📊 Key Insights:"
+                                                      FontWeight="Bold" Margin="0,5,0,5"
+                                                      Visibility="{Binding DataInsights.Insights.Count, Converter={StaticResource NullToVisibilityConverter}}"/>
+                                            <ItemsControl ItemsSource="{Binding DataInsights.Insights}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding}"
+                                                                  TextWrapping="Wrap" Margin="15,2,0,2"/>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <!-- Data Quality Issues -->
+                                            <TextBlock Text="⚠️ Data Quality Issues:"
+                                                      FontWeight="Bold" Margin="0,10,0,5"
+                                                      Foreground="#D32F2F"
+                                                      Visibility="{Binding DataInsights.DataQualityIssues.Count, Converter={StaticResource NullToVisibilityConverter}}"/>
+                                            <ItemsControl ItemsSource="{Binding DataInsights.DataQualityIssues}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding}"
+                                                                  TextWrapping="Wrap" Margin="15,2,0,2"
+                                                                  Foreground="#D32F2F"/>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <!-- Recommendations -->
+                                            <TextBlock Text="💡 Recommendations:"
+                                                      FontWeight="Bold" Margin="0,10,0,5"
+                                                      Foreground="#388E3C"
+                                                      Visibility="{Binding DataInsights.Recommendations.Count, Converter={StaticResource NullToVisibilityConverter}}"/>
+                                            <ItemsControl ItemsSource="{Binding DataInsights.Recommendations}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding}"
+                                                                  TextWrapping="Wrap" Margin="15,2,0,2"
+                                                                  Foreground="#388E3C"/>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <!-- Statistics -->
+                                            <Border Background="White" Padding="10" Margin="0,10,0,0"
+                                                   BorderBrush="#DDD" BorderThickness="1">
+                                                <StackPanel>
+                                                    <TextBlock Text="📈 Statistics" FontWeight="Bold" Margin="0,0,0,5"/>
+                                                    <TextBlock>
+                                                        <Run Text="Null Percentage: "/>
+                                                        <Run Text="{Binding DataInsights.Statistics.NullPercentage, StringFormat={}{0:F1}%}" FontWeight="Bold"/>
+                                                    </TextBlock>
+                                                    <TextBlock>
+                                                        <Run Text="Unique Values: "/>
+                                                        <Run Text="{Binding DataInsights.Statistics.UniqueValues}" FontWeight="Bold"/>
+                                                    </TextBlock>
+                                                    <TextBlock>
+                                                        <Run Text="Potential Duplicates: "/>
+                                                        <Run Text="{Binding DataInsights.Statistics.PotentialDuplicates}" FontWeight="Bold"/>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Border>
+                            </Expander>
                         </Grid>
                     </TabItem>
 
@@ -237,48 +443,117 @@
 
             <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch"/>
 
-            <!-- Right Panel: Validation & Explanation -->
+            <!-- Right Panel: Validation, Explanation & AI Optimization -->
             <Border Grid.Column="4" BorderBrush="#DDD" BorderThickness="1,0,0,0">
-                <DockPanel>
-                    <TextBlock DockPanel.Dock="Top" Text="Validation &amp; Explanation" FontWeight="Bold" 
-                               Padding="10" Background="#F5F5F5"/>
-                    
-                    <!-- Validation Results -->
-                    <GroupBox DockPanel.Dock="Top" Header="Validation Results" Margin="10">
-                        <ItemsControl ItemsSource="{Binding ValidationResult.Issues}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Padding="5" Margin="2" BorderThickness="1" 
-                                            BorderBrush="{Binding Severity, Converter={StaticResource SeverityToColorConverter}}"
-                                            Background="{Binding Severity, Converter={StaticResource SeverityToBackgroundConverter}}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="Validation &amp; AI Analysis" FontWeight="Bold"
+                                   Padding="10" Background="#F5F5F5"/>
+
+                        <!-- Validation Results -->
+                        <GroupBox DockPanel.Dock="Top" Header="Validation Results" Margin="10">
+                            <ItemsControl ItemsSource="{Binding ValidationResult.Issues}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Padding="5" Margin="2" BorderThickness="1"
+                                                BorderBrush="{Binding Severity, Converter={StaticResource SeverityToColorConverter}}"
+                                                Background="{Binding Severity, Converter={StaticResource SeverityToBackgroundConverter}}">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Message}" FontWeight="Bold" TextWrapping="Wrap"/>
+                                                <TextBlock Text="{Binding Suggestion}"
+                                                          FontStyle="Italic" TextWrapping="Wrap"
+                                                          Visibility="{Binding Suggestion, Converter={StaticResource NullToVisibilityConverter}}"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </GroupBox>
+
+                        <!-- AI Query Optimization -->
+                        <GroupBox DockPanel.Dock="Top" Header="⚡ AI Query Optimization" Margin="10">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Top"
+                                       Content="Analyze Performance"
+                                       Command="{Binding OptimizeQueryCommand}"
+                                       HorizontalAlignment="Left"
+                                       Margin="5"
+                                       Background="#9C27B0" Foreground="White"
+                                       ToolTip="Get AI-powered query optimization recommendations"/>
+
+                                <StackPanel Visibility="{Binding QueryOptimization, Converter={StaticResource NullToVisibilityConverter}}">
+                                    <!-- Performance Rating -->
+                                    <Border Background="#E1BEE7" Padding="8" Margin="5">
                                         <StackPanel>
-                                            <TextBlock Text="{Binding Message}" FontWeight="Bold" TextWrapping="Wrap"/>
-                                            <TextBlock Text="{Binding Suggestion}" 
-                                                      FontStyle="Italic" TextWrapping="Wrap"
-                                                      Visibility="{Binding Suggestion, Converter={StaticResource NullToVisibilityConverter}}"/>
+                                            <TextBlock Text="Performance Rating" FontWeight="Bold" FontSize="11"/>
+                                            <TextBlock Text="{Binding QueryOptimization.PerformanceRating}"
+                                                      FontSize="16" FontWeight="Bold" Margin="0,5,0,0"/>
+                                            <TextBlock Text="{Binding QueryOptimization.EstimatedImprovement}"
+                                                      FontStyle="Italic" TextWrapping="Wrap" Margin="0,5,0,0"/>
                                         </StackPanel>
                                     </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </GroupBox>
 
-                    <!-- Explanation -->
-                    <GroupBox Header="Explanation" Margin="10">
-                        <DockPanel>
-                            <Button DockPanel.Dock="Top" 
-                                   Content="Explain SQL" 
-                                   Command="{Binding ExplainSqlCommand}"
-                                   HorizontalAlignment="Left"
-                                   Margin="5"
-                                   ToolTip="Generate natural language explanation of the SQL statement using OpenAI"/>
-                            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                <TextBlock Text="{Binding Explanation}" 
-                                          TextWrapping="Wrap" Padding="5"/>
-                            </ScrollViewer>
-                        </DockPanel>
-                    </GroupBox>
-                </DockPanel>
+                                    <!-- Recommendations -->
+                                    <TextBlock Text="Recommendations:" FontWeight="Bold"
+                                              Margin="5,10,5,5"/>
+                                    <ItemsControl ItemsSource="{Binding QueryOptimization.Recommendations}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border BorderBrush="#9C27B0" BorderThickness="1"
+                                                       Padding="8" Margin="5" Background="#F3E5F5">
+                                                    <StackPanel>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <Border Background="#9C27B0" Padding="3,1" CornerRadius="2">
+                                                                <TextBlock Text="{Binding Priority}"
+                                                                          Foreground="White" FontSize="10"/>
+                                                            </Border>
+                                                            <Border Background="#7B1FA2" Padding="3,1"
+                                                                   CornerRadius="2" Margin="5,0,0,0">
+                                                                <TextBlock Text="{Binding Type}"
+                                                                          Foreground="White" FontSize="10"/>
+                                                            </Border>
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding Issue}"
+                                                                  FontWeight="Bold" TextWrapping="Wrap"
+                                                                  Margin="0,5,0,0"/>
+                                                        <TextBlock Text="{Binding Suggestion}"
+                                                                  TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                                        <TextBlock Text="{Binding Impact}"
+                                                                  FontStyle="Italic" Foreground="Green"
+                                                                  TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <!-- Apply Optimized SQL Button -->
+                                    <Button Content="✓ Apply Optimized SQL"
+                                           Command="{Binding ApplyOptimizedQueryCommand}"
+                                           Background="#4CAF50" Foreground="White"
+                                           Margin="5,10,5,5"
+                                           ToolTip="Replace current SQL with optimized version"/>
+                                </StackPanel>
+                            </DockPanel>
+                        </GroupBox>
+
+                        <!-- Explanation -->
+                        <GroupBox Header="Explanation" Margin="10">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Top"
+                                       Content="Explain SQL"
+                                       Command="{Binding ExplainSqlCommand}"
+                                       HorizontalAlignment="Left"
+                                       Margin="5"
+                                       ToolTip="Generate natural language explanation of the SQL statement using OpenAI"/>
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <TextBlock Text="{Binding Explanation}"
+                                              TextWrapping="Wrap" Padding="5"/>
+                                </ScrollViewer>
+                            </DockPanel>
+                        </GroupBox>
+                    </DockPanel>
+                </ScrollViewer>
             </Border>
         </Grid>
 
