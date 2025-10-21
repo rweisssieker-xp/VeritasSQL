@@ -88,6 +88,25 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<SmartFilter> _smartFilters = new();
 
+    // NEW AI Features (Set 2)
+    [ObservableProperty]
+    private SqlErrorAnalysis? _sqlErrorAnalysis;
+
+    [ObservableProperty]
+    private string _resultSummary = string.Empty;
+
+    [ObservableProperty]
+    private AnomalyDetectionResult? _anomalyDetection;
+
+    [ObservableProperty]
+    private VisualizationRecommendations? _visualizationRecommendations;
+
+    [ObservableProperty]
+    private string _semanticSearchQuery = string.Empty;
+
+    [ObservableProperty]
+    private ObservableCollection<QueryHistoryEntry> _semanticSearchResults = new();
+
     public MainViewModel(
         ConnectionManager connectionManager,
         SettingsService settingsService,
@@ -867,5 +886,240 @@ public partial class MainViewModel : ObservableObject
             StatusMessage = $"Applied filter: {filter.Column}";
         }
     }
+
+    // ===== NEW AI FEATURES (SET 2) =====
+
+    /// <summary>
+    /// Analyzes SQL errors and provides fix suggestions
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanAnalyzeSqlError))]
+    private async Task AnalyzeSqlErrorAsync(string errorMessage)
+    {
+        if (string.IsNullOrWhiteSpace(GeneratedSql) || CurrentSchema == null || string.IsNullOrWhiteSpace(errorMessage))
+            return;
+
+        IsBusy = true;
+        StatusMessage = "Analyzing SQL error with AI...";
+
+        try
+        {
+            var analysis = await _openAIService.ExplainAndFixSqlErrorAsync(GeneratedSql, errorMessage, CurrentSchema);
+            SqlErrorAnalysis = analysis;
+            StatusMessage = $"Error analysis complete: {analysis.ErrorType}";
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "AnalyzeSqlError",
+                ConnectionProfile = SelectedConnectionProfile?.Name,
+                GeneratedSql = GeneratedSql,
+                ErrorMessage = errorMessage,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error analyzing SQL error: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Failed to analyze SQL error";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanAnalyzeSqlError() => !IsBusy && !string.IsNullOrWhiteSpace(GeneratedSql) && CurrentSchema != null;
+
+    /// <summary>
+    /// Applies the AI-fixed SQL to the current query
+    /// </summary>
+    [RelayCommand]
+    private async Task ApplyFixedSqlAsync()
+    {
+        if (SqlErrorAnalysis == null || string.IsNullOrWhiteSpace(SqlErrorAnalysis.FixedSql))
+            return;
+
+        GeneratedSql = SqlErrorAnalysis.FixedSql;
+
+        // Re-validate
+        var settings = await _settingsService.GetSettingsAsync();
+        var validator = new QueryValidator(CurrentSchema!, settings.DefaultRowLimit);
+        ValidationResult = validator.Validate(GeneratedSql);
+
+        StatusMessage = "Applied fixed SQL from AI analysis";
+        SqlErrorAnalysis = null; // Clear analysis after applying
+    }
+
+    /// <summary>
+    /// Generates natural language summary of query results
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanSummarizeResults))]
+    private async Task SummarizeResultsAsync()
+    {
+        if (QueryResults == null || string.IsNullOrWhiteSpace(GeneratedSql) || string.IsNullOrWhiteSpace(NaturalLanguageQuery))
+            return;
+
+        IsBusy = true;
+        StatusMessage = "Generating AI summary of results...";
+
+        try
+        {
+            var summary = await _openAIService.SummarizeResultsAsync(QueryResults, GeneratedSql, NaturalLanguageQuery);
+            ResultSummary = summary;
+            StatusMessage = "Result summary generated";
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "SummarizeResults",
+                ConnectionProfile = SelectedConnectionProfile?.Name,
+                GeneratedSql = GeneratedSql,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error summarizing results: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Failed to summarize results";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanSummarizeResults() => !IsBusy && QueryResults != null && QueryResults.Rows.Count > 0;
+
+    /// <summary>
+    /// Detects anomalies in query results
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanDetectAnomalies))]
+    private async Task DetectAnomaliesAsync()
+    {
+        if (QueryResults == null || string.IsNullOrWhiteSpace(GeneratedSql))
+            return;
+
+        IsBusy = true;
+        StatusMessage = "Detecting anomalies with AI...";
+
+        try
+        {
+            var result = await _openAIService.DetectAnomaliesAsync(QueryResults, GeneratedSql);
+            AnomalyDetection = result;
+            StatusMessage = result.HasAnomalies
+                ? $"Found {result.AnomalyCount} anomalies"
+                : "No anomalies detected";
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "DetectAnomalies",
+                ConnectionProfile = SelectedConnectionProfile?.Name,
+                GeneratedSql = GeneratedSql,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error detecting anomalies: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Failed to detect anomalies";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanDetectAnomalies() => !IsBusy && QueryResults != null && QueryResults.Rows.Count > 0;
+
+    /// <summary>
+    /// Performs semantic search through query history
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanSemanticSearch))]
+    private async Task PerformSemanticSearchAsync()
+    {
+        if (string.IsNullOrWhiteSpace(SemanticSearchQuery))
+            return;
+
+        IsBusy = true;
+        StatusMessage = "Performing AI semantic search...";
+
+        try
+        {
+            var historyList = History.ToList();
+            var matchingIndices = await _openAIService.SemanticSearchHistoryAsync(SemanticSearchQuery, historyList);
+
+            var results = new List<QueryHistoryEntry>();
+            foreach (var index in matchingIndices)
+            {
+                if (index >= 0 && index < historyList.Count)
+                {
+                    results.Add(historyList[index]);
+                }
+            }
+
+            SemanticSearchResults = new ObservableCollection<QueryHistoryEntry>(results);
+            StatusMessage = $"Found {results.Count} semantically similar queries";
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "SemanticSearch",
+                NaturalLanguageQuery = SemanticSearchQuery,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error in semantic search: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Semantic search failed";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanSemanticSearch() => !IsBusy && !string.IsNullOrWhiteSpace(SemanticSearchQuery) && History.Count > 0;
+
+    /// <summary>
+    /// Gets AI visualization recommendations for query results
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanRecommendVisualizations))]
+    private async Task RecommendVisualizationsAsync()
+    {
+        if (QueryResults == null || string.IsNullOrWhiteSpace(GeneratedSql))
+            return;
+
+        IsBusy = true;
+        StatusMessage = "Getting AI visualization recommendations...";
+
+        try
+        {
+            var recommendations = await _openAIService.RecommendVisualizationsAsync(QueryResults, GeneratedSql);
+            VisualizationRecommendations = recommendations;
+            StatusMessage = "Visualization recommendations generated";
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "RecommendVisualizations",
+                ConnectionProfile = SelectedConnectionProfile?.Name,
+                GeneratedSql = GeneratedSql,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error getting visualization recommendations: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Failed to get visualization recommendations";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanRecommendVisualizations() => !IsBusy && QueryResults != null && QueryResults.Rows.Count > 0;
 }
 

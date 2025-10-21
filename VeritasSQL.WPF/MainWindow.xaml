@@ -281,6 +281,21 @@
                                         Margin="20,0,5,0"
                                         Background="#FF9800" Foreground="White"
                                         ToolTip="Get AI-powered insights about data quality, patterns, and anomalies"/>
+                                <Button Content="📝 AI Summary"
+                                        Command="{Binding SummarizeResultsCommand}"
+                                        Margin="5,0"
+                                        Background="#673AB7" Foreground="White"
+                                        ToolTip="Generate natural language summary of results"/>
+                                <Button Content="⚠️ Detect Anomalies"
+                                        Command="{Binding DetectAnomaliesCommand}"
+                                        Margin="5,0"
+                                        Background="#F44336" Foreground="White"
+                                        ToolTip="AI-powered anomaly detection in results"/>
+                                <Button Content="📊 Viz Recommendations"
+                                        Command="{Binding RecommendVisualizationsCommand}"
+                                        Margin="5,0"
+                                        Background="#00BCD4" Foreground="White"
+                                        ToolTip="Get AI recommendations for data visualization"/>
                             </StackPanel>
 
                             <DataGrid Grid.Row="1"
@@ -373,6 +388,140 @@
                                     </ScrollViewer>
                                 </Border>
                             </Expander>
+
+                            <!-- AI Result Summary Panel -->
+                            <Expander Grid.Row="2"
+                                     Header="📝 AI Result Summary"
+                                     IsExpanded="True"
+                                     Visibility="{Binding ResultSummary, Converter={StaticResource NullToVisibilityConverter}}"
+                                     Margin="5">
+                                <Border BorderBrush="#673AB7" BorderThickness="2" Padding="10"
+                                        Background="#EDE7F6">
+                                    <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto">
+                                        <TextBlock Text="{Binding ResultSummary}"
+                                                  TextWrapping="Wrap"
+                                                  FontFamily="Segoe UI"/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Expander>
+
+                            <!-- Anomaly Detection Panel -->
+                            <Expander Grid.Row="2"
+                                     Header="⚠️ AI Anomaly Detection"
+                                     IsExpanded="True"
+                                     Visibility="{Binding AnomalyDetection, Converter={StaticResource NullToVisibilityConverter}}"
+                                     Margin="5">
+                                <Border BorderBrush="#F44336" BorderThickness="2" Padding="10"
+                                        Background="#FFEBEE">
+                                    <ScrollViewer MaxHeight="250" VerticalScrollBarVisibility="Auto">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding AnomalyDetection.Summary}"
+                                                      FontWeight="Bold" Margin="0,0,0,10"
+                                                      TextWrapping="Wrap"/>
+
+                                            <ItemsControl ItemsSource="{Binding AnomalyDetection.Anomalies}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Background="White" Padding="8" Margin="0,5"
+                                                               BorderBrush="#E57373" BorderThickness="1">
+                                                            <StackPanel>
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Border Background="#F44336" Padding="3,1" CornerRadius="2">
+                                                                        <TextBlock Text="{Binding Severity}"
+                                                                                  Foreground="White" FontSize="10"/>
+                                                                    </Border>
+                                                                    <Border Background="#E91E63" Padding="3,1"
+                                                                           CornerRadius="2" Margin="5,0,0,0">
+                                                                        <TextBlock Text="{Binding Type}"
+                                                                                  Foreground="White" FontSize="10"/>
+                                                                    </Border>
+                                                                </StackPanel>
+                                                                <TextBlock Text="{Binding Description}"
+                                                                          FontWeight="Bold" TextWrapping="Wrap"
+                                                                          Margin="0,5,0,0"/>
+                                                                <TextBlock Text="{Binding AffectedRows}"
+                                                                          Foreground="Gray" TextWrapping="Wrap"
+                                                                          Margin="0,3,0,0"/>
+                                                                <TextBlock Text="{Binding Recommendation}"
+                                                                          Foreground="#388E3C" FontStyle="Italic"
+                                                                          TextWrapping="Wrap" Margin="0,5,0,0"/>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Border>
+                            </Expander>
+
+                            <!-- Visualization Recommendations Panel -->
+                            <Expander Grid.Row="2"
+                                     Header="📊 AI Visualization Recommendations"
+                                     IsExpanded="True"
+                                     Visibility="{Binding VisualizationRecommendations, Converter={StaticResource NullToVisibilityConverter}}"
+                                     Margin="5">
+                                <Border BorderBrush="#00BCD4" BorderThickness="2" Padding="10"
+                                        Background="#E0F7FA">
+                                    <ScrollViewer MaxHeight="250" VerticalScrollBarVisibility="Auto">
+                                        <StackPanel>
+                                            <!-- Primary Recommendation -->
+                                            <TextBlock Text="✨ Primary Recommendation" FontWeight="Bold"
+                                                      Margin="0,0,0,5"/>
+                                            <Border Background="White" Padding="10" Margin="0,5"
+                                                   BorderBrush="#00BCD4" BorderThickness="2">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding VisualizationRecommendations.PrimaryRecommendation.ChartType}"
+                                                              FontSize="16" FontWeight="Bold" Foreground="#00838F"/>
+                                                    <TextBlock Text="{Binding VisualizationRecommendations.PrimaryRecommendation.Reason}"
+                                                              TextWrapping="Wrap" Margin="0,5,0,0"/>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                                                        <TextBlock Text="X-Axis: " FontWeight="Bold"/>
+                                                        <TextBlock Text="{Binding VisualizationRecommendations.PrimaryRecommendation.XAxis}"/>
+                                                        <TextBlock Text="  Y-Axis: " FontWeight="Bold" Margin="10,0,0,0"/>
+                                                        <TextBlock Text="{Binding VisualizationRecommendations.PrimaryRecommendation.YAxis}"/>
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding VisualizationRecommendations.PrimaryRecommendation.Configuration}"
+                                                              FontStyle="Italic" Foreground="Gray"
+                                                              TextWrapping="Wrap" Margin="0,5,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- Alternative Recommendations -->
+                                            <TextBlock Text="💡 Alternative Options" FontWeight="Bold"
+                                                      Margin="0,10,0,5"
+                                                      Visibility="{Binding VisualizationRecommendations.AlternativeRecommendations.Count, Converter={StaticResource NullToVisibilityConverter}}"/>
+                                            <ItemsControl ItemsSource="{Binding VisualizationRecommendations.AlternativeRecommendations}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Background="White" Padding="8" Margin="0,3"
+                                                               BorderBrush="#4DD0E1" BorderThickness="1">
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding ChartType}"
+                                                                          FontWeight="Bold" Foreground="#00838F"/>
+                                                                <TextBlock Text="{Binding Reason}"
+                                                                          TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                                                <TextBlock Text="{Binding UseCase}"
+                                                                          FontStyle="Italic" Foreground="Gray"
+                                                                          TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <!-- Insights -->
+                                            <Border Background="#B2EBF2" Padding="10" Margin="0,10,0,0">
+                                                <StackPanel>
+                                                    <TextBlock Text="🔍 What This Will Reveal:" FontWeight="Bold"/>
+                                                    <TextBlock Text="{Binding VisualizationRecommendations.Insights}"
+                                                              TextWrapping="Wrap" Margin="0,5,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Border>
+                            </Expander>
                         </Grid>
                     </TabItem>
 
@@ -384,10 +533,39 @@
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
 
-                            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5">
-                                <Button Content="Refresh" Command="{Binding RefreshHistoryCommand}"/>
-                                <TextBox Width="200" Margin="10,0,0,0" x:Name="HistorySearchBox"/>
-                                <Button Content="Search" Margin="5,0,0,0"/>
+                            <StackPanel Grid.Row="0" Orientation="Vertical" Margin="5">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="Refresh" Command="{Binding RefreshHistoryCommand}"/>
+                                    <TextBox Width="300" Margin="10,0,0,0"
+                                            Text="{Binding SemanticSearchQuery, UpdateSourceTrigger=PropertyChanged}"
+                                            ToolTip="Enter a question to find semantically similar queries"/>
+                                    <Button Content="🔍 AI Semantic Search"
+                                           Command="{Binding PerformSemanticSearchCommand}"
+                                           Margin="5,0,0,0"
+                                           Background="#9C27B0" Foreground="White"
+                                           ToolTip="Use AI to find queries with similar meaning"/>
+                                </StackPanel>
+
+                                <!-- Semantic Search Results -->
+                                <Expander Header="🔍 Semantic Search Results"
+                                         IsExpanded="True"
+                                         Visibility="{Binding SemanticSearchResults.Count, Converter={StaticResource NullToVisibilityConverter}}"
+                                         Margin="0,5,0,0">
+                                    <ListView ItemsSource="{Binding SemanticSearchResults}"
+                                             MaxHeight="150" Margin="5">
+                                        <ListView.View>
+                                            <GridView>
+                                                <GridViewColumn Header="Question" Width="300" DisplayMemberBinding="{Binding NaturalLanguageQuery}"/>
+                                                <GridViewColumn Header="Data Source" Width="120" DisplayMemberBinding="{Binding ConnectionProfileName}"/>
+                                            </GridView>
+                                        </ListView.View>
+                                        <ListView.ItemContainerStyle>
+                                            <Style TargetType="ListViewItem">
+                                                <EventSetter Event="MouseDoubleClick" Handler="HistoryItem_DoubleClick"/>
+                                            </Style>
+                                        </ListView.ItemContainerStyle>
+                                    </ListView>
+                                </Expander>
                             </StackPanel>
 
                             <ListView Grid.Row="1" ItemsSource="{Binding History}" Margin="5">
