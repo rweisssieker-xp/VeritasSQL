@@ -72,6 +72,22 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private int _selectedTabIndex;
 
+    // AI Features
+    [ObservableProperty]
+    private ObservableCollection<QuerySuggestion> _querySuggestions = new();
+
+    [ObservableProperty]
+    private DataInsights? _dataInsights;
+
+    [ObservableProperty]
+    private QueryOptimization? _queryOptimization;
+
+    [ObservableProperty]
+    private string _schemaInsights = string.Empty;
+
+    [ObservableProperty]
+    private ObservableCollection<SmartFilter> _smartFilters = new();
+
     public MainViewModel(
         ConnectionManager connectionManager,
         SettingsService settingsService,
@@ -584,5 +600,272 @@ public partial class MainViewModel : ObservableObject
     }
 
     private bool CanRefine() => !IsBusy && !string.IsNullOrWhiteSpace(GeneratedSql) && CurrentSchema != null;
+
+    // ===== NEW AI FEATURES =====
+
+    /// <summary>
+    /// Generates intelligent query suggestions based on the current schema
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanGenerateQuerySuggestions))]
+    private async Task GenerateQuerySuggestionsAsync()
+    {
+        if (CurrentSchema == null)
+            return;
+
+        IsBusy = true;
+        StatusMessage = "Generating AI query suggestions...";
+
+        try
+        {
+            var suggestions = await _openAIService.GenerateQuerySuggestionsAsync(CurrentSchema, 10);
+            QuerySuggestions = new ObservableCollection<QuerySuggestion>(suggestions);
+            StatusMessage = $"Generated {suggestions.Count} query suggestions";
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "GenerateQuerySuggestions",
+                ConnectionProfile = SelectedConnectionProfile?.Name,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error generating query suggestions: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Failed to generate query suggestions";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanGenerateQuerySuggestions() => !IsBusy && IsConnected && CurrentSchema != null;
+
+    /// <summary>
+    /// Applies a query suggestion to the natural language query field
+    /// </summary>
+    [RelayCommand]
+    private void ApplyQuerySuggestion(QuerySuggestion suggestion)
+    {
+        if (suggestion != null)
+        {
+            NaturalLanguageQuery = suggestion.NaturalLanguageQuery;
+            StatusMessage = $"Applied suggestion: {suggestion.Title}";
+        }
+    }
+
+    /// <summary>
+    /// Analyzes query results and provides AI-powered insights
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanAnalyzeDataInsights))]
+    private async Task AnalyzeDataInsightsAsync()
+    {
+        if (QueryResults == null || string.IsNullOrWhiteSpace(GeneratedSql))
+            return;
+
+        IsBusy = true;
+        StatusMessage = "Analyzing data with AI...";
+
+        try
+        {
+            var insights = await _openAIService.AnalyzeDataInsightsAsync(QueryResults, GeneratedSql);
+            DataInsights = insights;
+            StatusMessage = "Data insights generated";
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "AnalyzeDataInsights",
+                ConnectionProfile = SelectedConnectionProfile?.Name,
+                GeneratedSql = GeneratedSql,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error analyzing data insights: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Failed to analyze data insights";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanAnalyzeDataInsights() => !IsBusy && QueryResults != null && QueryResults.Rows.Count > 0;
+
+    /// <summary>
+    /// Gets AI-powered query optimization recommendations
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanOptimizeQuery))]
+    private async Task OptimizeQueryAsync()
+    {
+        if (string.IsNullOrWhiteSpace(GeneratedSql) || CurrentSchema == null)
+            return;
+
+        IsBusy = true;
+        StatusMessage = "Getting AI optimization suggestions...";
+
+        try
+        {
+            var optimization = await _openAIService.OptimizeQueryAsync(GeneratedSql, CurrentSchema);
+            QueryOptimization = optimization;
+            StatusMessage = $"Query optimization: {optimization.PerformanceRating}";
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "OptimizeQuery",
+                ConnectionProfile = SelectedConnectionProfile?.Name,
+                GeneratedSql = GeneratedSql,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error optimizing query: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Failed to optimize query";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanOptimizeQuery() => !IsBusy && !string.IsNullOrWhiteSpace(GeneratedSql) && CurrentSchema != null;
+
+    /// <summary>
+    /// Applies the AI-optimized SQL to the current query
+    /// </summary>
+    [RelayCommand]
+    private async Task ApplyOptimizedQueryAsync()
+    {
+        if (QueryOptimization == null || string.IsNullOrWhiteSpace(QueryOptimization.OptimizedSql))
+            return;
+
+        GeneratedSql = QueryOptimization.OptimizedSql;
+
+        // Re-validate
+        var settings = await _settingsService.GetSettingsAsync();
+        var validator = new QueryValidator(CurrentSchema!, settings.DefaultRowLimit);
+        ValidationResult = validator.Validate(GeneratedSql);
+
+        StatusMessage = "Applied optimized SQL";
+    }
+
+    /// <summary>
+    /// Gets AI explanation of schema relationships
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanExplainSchema))]
+    private async Task ExplainSchemaAsync(string? focusTable = null)
+    {
+        if (CurrentSchema == null)
+            return;
+
+        IsBusy = true;
+        StatusMessage = "Getting AI schema insights...";
+
+        try
+        {
+            var insights = await _openAIService.ExplainSchemaRelationshipsAsync(CurrentSchema, focusTable);
+            SchemaInsights = insights;
+            StatusMessage = "Schema insights generated";
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "ExplainSchema",
+                ConnectionProfile = SelectedConnectionProfile?.Name,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error explaining schema: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Failed to explain schema";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanExplainSchema() => !IsBusy && CurrentSchema != null;
+
+    /// <summary>
+    /// Generates smart filter suggestions based on sample data
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanGenerateSmartFilters))]
+    private async Task GenerateSmartFiltersAsync(string tableName)
+    {
+        if (string.IsNullOrWhiteSpace(tableName) || CurrentSchema == null || SelectedConnectionProfile == null)
+            return;
+
+        IsBusy = true;
+        StatusMessage = "Generating smart filter suggestions...";
+
+        try
+        {
+            // First, get sample data from the table
+            var sampleSql = $"SELECT TOP 100 * FROM {tableName}";
+            var connectionString = SelectedConnectionProfile.GetConnectionString();
+            var result = await _queryExecutor.ExecuteQueryAsync(connectionString, sampleSql);
+
+            if (result.Success && result.Data != null)
+            {
+                var filters = await _openAIService.GenerateSmartFiltersAsync(tableName, result.Data, CurrentSchema);
+                SmartFilters = new ObservableCollection<SmartFilter>(filters);
+                StatusMessage = $"Generated {filters.Count} smart filter suggestions";
+
+                await _auditLogger.LogAsync(new AuditEntry
+                {
+                    Action = "GenerateSmartFilters",
+                    ConnectionProfile = SelectedConnectionProfile.Name,
+                    ExecutionStatus = "Success"
+                });
+            }
+            else
+            {
+                MessageBox.Show($"Could not retrieve sample data: {result.ErrorMessage}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error generating smart filters: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Failed to generate smart filters";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanGenerateSmartFilters() => !IsBusy && IsConnected && CurrentSchema != null;
+
+    /// <summary>
+    /// Applies a smart filter to the natural language query
+    /// </summary>
+    [RelayCommand]
+    private void ApplySmartFilter(SmartFilter filter)
+    {
+        if (filter != null)
+        {
+            // Append the filter suggestion to the natural language query
+            var filterText = $"Filter by {filter.Column} {filter.FilterType} {filter.SuggestedValue}";
+            if (string.IsNullOrWhiteSpace(NaturalLanguageQuery))
+            {
+                NaturalLanguageQuery = filterText;
+            }
+            else
+            {
+                NaturalLanguageQuery += $" and {filterText}";
+            }
+
+            StatusMessage = $"Applied filter: {filter.Column}";
+        }
+    }
 }
 

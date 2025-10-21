@@ -16,6 +16,14 @@ A WPF desktop application that translates natural language questions into secure
 - **Export**: CSV and Excel export with optional metadata
 - **Audit Trail**: Complete logging of all actions
 
+### AI-Powered Features
+
+- **Smart Query Suggestions**: AI generates intelligent query suggestions based on your database schema
+- **Data Insights**: AI analyzes query results and provides actionable insights about data quality, patterns, and anomalies
+- **Query Optimization**: AI-powered performance recommendations with optimized SQL rewrites
+- **Schema Relationship Insights**: AI explains complex database relationships in business-friendly language
+- **Smart Filters**: AI suggests useful filters based on actual data distribution
+
 ### Security Features
 
 1. **Whitelist**: Only SELECT statements allowed
@@ -103,6 +111,70 @@ How many customers per country?
 
 Show average order value per month in 2024
 ```
+
+## AI Features in Detail
+
+### 1. Smart Query Suggestions
+After connecting and loading the schema, click **"Generate AI Suggestions"** to get:
+- Common analytical queries (aggregations, trends, top N)
+- Queries leveraging foreign key relationships (JOINs)
+- Data quality checks
+- Business-focused query templates
+
+Each suggestion includes:
+- **Title**: Short description
+- **Category**: analytics | reporting | data_quality | relationships
+- **Complexity**: low | medium | high
+- **Natural Language Query**: Ready-to-use query text
+
+Click any suggestion to automatically populate the query field.
+
+### 2. AI Data Insights
+After executing a query, click **"Analyze Data with AI"** to get:
+- **Summary**: Overview of the data
+- **Insights**: Statistical patterns and business trends
+- **Data Quality Issues**: Null values, duplicates, outliers
+- **Recommendations**: Suggestions for data cleanup or further analysis
+- **Statistics**: Null percentage, unique values, potential duplicates
+
+Perfect for exploratory data analysis and data quality monitoring.
+
+### 3. Query Optimization
+After generating SQL, click **"Optimize Query"** to get:
+- **Performance Rating**: excellent | good | fair | poor
+- **Optimized SQL**: Rewritten query for better performance
+- **Recommendations**: Detailed suggestions with priorities
+  - Index suggestions
+  - JOIN optimization
+  - WHERE clause improvements
+  - Avoiding SELECT *
+- **Estimated Improvement**: Expected performance gain
+
+Click **"Apply Optimized SQL"** to use the improved query.
+
+### 4. Schema Relationship Insights
+Click **"Explain Schema"** to get AI-powered explanations of:
+- How tables are related via foreign keys
+- Business meaning of relationships
+- Common query patterns for your schema
+- Data model structure (fact/dimension tables)
+
+Focus on a specific table to get detailed insights about its usage and relationships.
+
+### 5. Smart Filters
+Select a table and click **"Generate Smart Filters"** to get AI suggestions for:
+- Common filter values (categories, status codes)
+- Useful date ranges
+- Outlier detection (min/max values)
+- Aggregation groupings
+
+Each filter includes:
+- **Column**: Which field to filter
+- **Filter Type**: equals | range | in | like | date_range
+- **Suggested Value**: Example or recommended value
+- **Reason**: Why this filter is useful
+
+Click to automatically add filters to your natural language query.
 
 ## Architecture
 
@@ -212,15 +284,22 @@ This project is licensed under the MIT License. See LICENSE file for details.
 
 Planned features:
 
+- [x] **AI Query Suggestions** - Schema-based intelligent query recommendations
+- [x] **AI Data Insights** - Automated data quality and pattern analysis
+- [x] **AI Query Optimization** - Performance recommendations and SQL rewrites
+- [x] **AI Schema Insights** - Natural language explanations of database structure
+- [x] **AI Smart Filters** - Data-driven filter suggestions
 - [ ] PostgreSQL & MySQL support
 - [ ] Parameter dialog for dynamic values
 - [ ] Domain dictionary editor
-- [ ] SQL explanation feature
-- [ ] Iterative query refinement
+- [x] SQL explanation feature
+- [x] Iterative query refinement
 - [ ] Favorites management with descriptions
 - [ ] Export scheduler
 - [ ] Dark/Light theme
 - [ ] Multi-language support
+- [ ] AI-powered anomaly detection in query results
+- [ ] Automated query performance benchmarking
 
 ## Support & Contributions
 
