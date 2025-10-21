@@ -107,6 +107,51 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<QueryHistoryEntry> _semanticSearchResults = new();
 
+    // Phase 1: AI Co-Pilot Features
+    [ObservableProperty]
+    private ObservableCollection<QueryCopilotSuggestion> _copilotSuggestions = new();
+
+    [ObservableProperty]
+    private ObservableCollection<PredictiveQuerySuggestion> _predictiveQueries = new();
+
+    [ObservableProperty]
+    private JoinPathResult? _joinPath;
+
+    [ObservableProperty]
+    private string _joinSourceTable = string.Empty;
+
+    [ObservableProperty]
+    private string _joinTargetTable = string.Empty;
+
+    // Phase 2: Enterprise Features
+    [ObservableProperty]
+    private DataProfilingResult? _dataProfilingResult;
+
+    [ObservableProperty]
+    private ConversationContext _conversationContext = new();
+
+    [ObservableProperty]
+    private string _chatMessage = string.Empty;
+
+    [ObservableProperty]
+    private ObservableCollection<ConversationTurn> _chatHistory = new();
+
+    // Phase 3: Premium Features
+    [ObservableProperty]
+    private DashboardDefinition? _generatedDashboard;
+
+    [ObservableProperty]
+    private string _dashboardTopic = string.Empty;
+
+    [ObservableProperty]
+    private DataQualityScore? _dataQualityScore;
+
+    [ObservableProperty]
+    private BusinessImpactAnalysis? _impactAnalysis;
+
+    [ObservableProperty]
+    private string _schemaChangeDescription = string.Empty;
+
     public MainViewModel(
         ConnectionManager connectionManager,
         SettingsService settingsService,
@@ -1121,5 +1166,405 @@ public partial class MainViewModel : ObservableObject
     }
 
     private bool CanRecommendVisualizations() => !IsBusy && QueryResults != null && QueryResults.Rows.Count > 0;
+
+    /// <summary>
+    /// Phase 1: AI Query Co-Pilot - Get real-time suggestions
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanGetCopilotSuggestions))]
+    private async Task GetCopilotSuggestionsAsync()
+    {
+        if (string.IsNullOrWhiteSpace(NaturalLanguageQuery) || NaturalLanguageQuery.Length < 3)
+            return;
+
+        try
+        {
+            var suggestions = await _openAIService.GetCopilotSuggestionsAsync(
+                NaturalLanguageQuery,
+                _currentSchema,
+                History.ToList());
+
+            CopilotSuggestions = new ObservableCollection<QueryCopilotSuggestion>(suggestions);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Co-pilot error: {ex.Message}";
+        }
+    }
+
+    private bool CanGetCopilotSuggestions() => !IsBusy && !string.IsNullOrWhiteSpace(NaturalLanguageQuery);
+
+    /// <summary>
+    /// Phase 1: Predictive Next Query - Netflix-style recommendations
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanPredictNextQueries))]
+    private async Task PredictNextQueriesAsync()
+    {
+        if (History.Count == 0)
+            return;
+
+        IsBusy = true;
+        StatusMessage = "Predicting next queries...";
+
+        try
+        {
+            var lastQuery = History.First();
+            var predictions = await _openAIService.PredictNextQueriesAsync(
+                lastQuery,
+                History.ToList(),
+                _currentSchema,
+                QueryResults);
+
+            PredictiveQueries = new ObservableCollection<PredictiveQuerySuggestion>(predictions);
+            StatusMessage = $"Found {predictions.Count} predictive suggestions";
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "PredictNextQueries",
+                ConnectionProfile = SelectedConnectionProfile?.Name,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error predicting queries: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Failed to predict next queries";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanPredictNextQueries() => !IsBusy && History.Count > 0;
+
+    /// <summary>
+    /// Phase 1: Smart JOIN Path Finder
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanFindJoinPath))]
+    private async Task FindJoinPathAsync()
+    {
+        if (string.IsNullOrWhiteSpace(JoinSourceTable) || string.IsNullOrWhiteSpace(JoinTargetTable))
+            return;
+
+        IsBusy = true;
+        StatusMessage = $"Finding JOIN path from {JoinSourceTable} to {JoinTargetTable}...";
+
+        try
+        {
+            var path = await _openAIService.FindJoinPathAsync(
+                JoinSourceTable,
+                JoinTargetTable,
+                _currentSchema);
+
+            JoinPath = path;
+            StatusMessage = $"Found path with {path.PathLength} steps";
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "FindJoinPath",
+                ConnectionProfile = SelectedConnectionProfile?.Name,
+                GeneratedSql = path.CompleteSql,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error finding JOIN path: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Failed to find JOIN path";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanFindJoinPath() => !IsBusy && !string.IsNullOrWhiteSpace(JoinSourceTable) && !string.IsNullOrWhiteSpace(JoinTargetTable);
+
+    /// <summary>
+    /// Phase 2: AI Data Profiling & PII Detection
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanProfileData))]
+    private async Task ProfileDataAsync()
+    {
+        if (SelectedTable == null || QueryResults == null)
+            return;
+
+        IsBusy = true;
+        StatusMessage = "Profiling data and detecting PII...";
+
+        try
+        {
+            var profiling = await _openAIService.ProfileDataAsync(
+                SelectedTable.TableName,
+                QueryResults,
+                _currentSchema);
+
+            DataProfilingResult = profiling;
+            StatusMessage = $"Profiling complete - Risk: {profiling.OverallRisk}";
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "ProfileData",
+                ConnectionProfile = SelectedConnectionProfile?.Name,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error profiling data: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Failed to profile data";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanProfileData() => !IsBusy && QueryResults != null && QueryResults.Rows.Count > 0;
+
+    /// <summary>
+    /// Phase 2: Conversational Chat Interface
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanSendChatMessage))]
+    private async Task SendChatMessageAsync()
+    {
+        if (string.IsNullOrWhiteSpace(ChatMessage))
+            return;
+
+        IsBusy = true;
+        var userMessage = ChatMessage;
+        ChatMessage = string.Empty; // Clear input
+
+        try
+        {
+            var response = await _openAIService.ChatAsync(
+                userMessage,
+                ConversationContext,
+                _currentSchema);
+
+            ChatHistory = new ObservableCollection<ConversationTurn>(ConversationContext.Turns);
+
+            // If SQL was generated, update the main query
+            if (!string.IsNullOrEmpty(response.Sql))
+            {
+                GeneratedSql = response.Sql;
+            }
+
+            StatusMessage = "Chat response received";
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "ChatMessage",
+                ConnectionProfile = SelectedConnectionProfile?.Name,
+                GeneratedSql = response.Sql,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error in chat: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Chat failed";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanSendChatMessage() => !IsBusy && !string.IsNullOrWhiteSpace(ChatMessage);
+
+    /// <summary>
+    /// Phase 3: Automated Dashboard Generator
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanGenerateDashboard))]
+    private async Task GenerateDashboardAsync()
+    {
+        if (string.IsNullOrWhiteSpace(DashboardTopic))
+            return;
+
+        IsBusy = true;
+        StatusMessage = $"Generating dashboard for: {DashboardTopic}...";
+
+        try
+        {
+            var dashboard = await _openAIService.GenerateDashboardAsync(
+                DashboardTopic,
+                _currentSchema,
+                History.ToList());
+
+            GeneratedDashboard = dashboard;
+            StatusMessage = $"Dashboard created with {dashboard.Widgets.Count} widgets";
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "GenerateDashboard",
+                ConnectionProfile = SelectedConnectionProfile?.Name,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error generating dashboard: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Failed to generate dashboard";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanGenerateDashboard() => !IsBusy && !string.IsNullOrWhiteSpace(DashboardTopic);
+
+    /// <summary>
+    /// Phase 3: AI Data Quality Score
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanCalculateQualityScore))]
+    private async Task CalculateQualityScoreAsync()
+    {
+        if (SelectedTable == null || QueryResults == null)
+            return;
+
+        IsBusy = true;
+        StatusMessage = "Calculating data quality score...";
+
+        try
+        {
+            var score = await _openAIService.CalculateDataQualityScoreAsync(
+                SelectedTable.TableName,
+                QueryResults,
+                _currentSchema);
+
+            DataQualityScore = score;
+            StatusMessage = $"Quality Score: {score.OverallScore:F1}/100 (Grade: {score.Grade})";
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "CalculateQualityScore",
+                ConnectionProfile = SelectedConnectionProfile?.Name,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error calculating quality score: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Failed to calculate quality score";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanCalculateQualityScore() => !IsBusy && QueryResults != null && QueryResults.Rows.Count > 0;
+
+    /// <summary>
+    /// Phase 3: Business Impact Analysis
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanAnalyzeImpact))]
+    private async Task AnalyzeImpactAsync()
+    {
+        if (string.IsNullOrWhiteSpace(SchemaChangeDescription))
+            return;
+
+        IsBusy = true;
+        StatusMessage = "Analyzing business impact...";
+
+        try
+        {
+            var analysis = await _openAIService.AnalyzeSchemaChangeImpactAsync(
+                SchemaChangeDescription,
+                _currentSchema,
+                History.ToList());
+
+            ImpactAnalysis = analysis;
+            StatusMessage = $"Impact: {analysis.ImpactLevel} - {analysis.AffectedQueries.Count} queries affected";
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "AnalyzeImpact",
+                ConnectionProfile = SelectedConnectionProfile?.Name,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error analyzing impact: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Failed to analyze impact";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanAnalyzeImpact() => !IsBusy && !string.IsNullOrWhiteSpace(SchemaChangeDescription);
+
+    /// <summary>
+    /// Apply a predictive query suggestion
+    /// </summary>
+    [RelayCommand]
+    private void ApplyPredictiveQuery(PredictiveQuerySuggestion suggestion)
+    {
+        if (suggestion == null) return;
+
+        NaturalLanguageQuery = suggestion.NaturalLanguageQuery;
+        GeneratedSql = suggestion.Sql;
+        StatusMessage = $"Applied: {suggestion.Title}";
+    }
+
+    /// <summary>
+    /// Apply a co-pilot suggestion
+    /// </summary>
+    [RelayCommand]
+    private void ApplyCopilotSuggestion(QueryCopilotSuggestion suggestion)
+    {
+        if (suggestion == null) return;
+
+        NaturalLanguageQuery = suggestion.CompletionText;
+        GeneratedSql = suggestion.FullSql;
+        StatusMessage = "Co-pilot suggestion applied";
+    }
+
+    /// <summary>
+    /// Apply JOIN path SQL
+    /// </summary>
+    [RelayCommand]
+    private void ApplyJoinPath()
+    {
+        if (JoinPath == null) return;
+
+        GeneratedSql = JoinPath.CompleteSql;
+        StatusMessage = "JOIN path SQL applied";
+    }
+
+    /// <summary>
+    /// Execute dashboard widget query
+    /// </summary>
+    [RelayCommand]
+    private async Task ExecuteDashboardWidgetAsync(DashboardWidget widget)
+    {
+        if (widget == null) return;
+
+        GeneratedSql = widget.Sql;
+        await ExecuteQueryAsync();
+    }
+
+    /// <summary>
+    /// Clear conversation context
+    /// </summary>
+    [RelayCommand]
+    private void ClearConversation()
+    {
+        ConversationContext = new ConversationContext();
+        ChatHistory.Clear();
+        StatusMessage = "Conversation cleared";
+    }
 }
 
