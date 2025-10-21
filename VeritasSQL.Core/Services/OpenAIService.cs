@@ -505,6 +505,314 @@ Respond with a JSON array:
         }
     }
 
+    /// <summary>
+    /// Explains SQL errors and provides auto-fix suggestions
+    /// </summary>
+    public async Task<SqlErrorAnalysis> ExplainAndFixSqlErrorAsync(string sql, string errorMessage, SchemaInfo schema)
+    {
+        if (string.IsNullOrEmpty(_apiKey))
+        {
+            throw new InvalidOperationException("OpenAI API Key is not configured");
+        }
+
+        var client = new ChatClient(_model, _apiKey);
+
+        var systemPrompt = @"You are an SQL error diagnosis expert. Analyze SQL errors and provide:
+1. Clear explanation of what went wrong
+2. The root cause of the error
+3. Corrected SQL that fixes the issue
+4. Learning points to avoid similar errors
+
+Respond in JSON format:
+{
+  ""errorType"": ""syntax|permission|schema|logic|other"",
+  ""explanation"": ""User-friendly explanation of the error"",
+  ""rootCause"": ""Technical root cause"",
+  ""fixedSql"": ""Corrected SQL statement"",
+  ""learningPoints"": [""tip 1"", ""tip 2"", ...],
+  ""severity"": ""critical|high|medium|low""
+}";
+
+        var userPrompt = $"Schema:\n{SerializeSchema(schema)}\n\nFailed SQL:\n{sql}\n\nError Message:\n{errorMessage}\n\nAnalyze and fix this error.";
+
+        var messages = new List<ChatMessage>
+        {
+            new SystemChatMessage(systemPrompt),
+            new UserChatMessage(userPrompt)
+        };
+
+        try
+        {
+            var response = await client.CompleteChatAsync(messages);
+            var content = response.Value.Content[0].Text;
+
+            var jsonMatch = System.Text.RegularExpressions.Regex.Match(
+                content,
+                @"\{[\s\S]*\}",
+                System.Text.RegularExpressions.RegexOptions.Multiline);
+
+            if (jsonMatch.Success)
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var analysis = JsonSerializer.Deserialize<SqlErrorAnalysis>(jsonMatch.Value, options);
+                return analysis ?? new SqlErrorAnalysis { ErrorType = "unknown", Explanation = "Could not analyze error" };
+            }
+
+            return new SqlErrorAnalysis { ErrorType = "unknown", Explanation = content };
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Error analyzing SQL error: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Generates a natural language summary of query results
+    /// </summary>
+    public async Task<string> SummarizeResultsAsync(System.Data.DataTable data, string sql, string naturalLanguageQuery)
+    {
+        if (string.IsNullOrEmpty(_apiKey))
+        {
+            throw new InvalidOperationException("OpenAI API Key is not configured");
+        }
+
+        var client = new ChatClient(_model, _apiKey);
+
+        var sampleData = SerializeDataTableSample(data, 50);
+
+        var systemPrompt = @"You are a data analysis expert. Summarize query results in clear, business-friendly language.
+Focus on:
+- Key findings and insights
+- Notable patterns or trends
+- Data distribution highlights
+- Answering the user's original question
+
+Write 2-3 paragraphs in natural, conversational language.";
+
+        var userPrompt = $"User's Question: {naturalLanguageQuery}\n\nSQL Query:\n{sql}\n\nResults ({data.Rows.Count} rows total):\n{sampleData}\n\nProvide a natural language summary.";
+
+        var messages = new List<ChatMessage>
+        {
+            new SystemChatMessage(systemPrompt),
+            new UserChatMessage(userPrompt)
+        };
+
+        try
+        {
+            var response = await client.CompleteChatAsync(messages);
+            return response.Value.Content[0].Text;
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Error summarizing results: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Detects anomalies in query results using AI
+    /// </summary>
+    public async Task<AnomalyDetectionResult> DetectAnomaliesAsync(System.Data.DataTable data, string sql)
+    {
+        if (string.IsNullOrEmpty(_apiKey))
+        {
+            throw new InvalidOperationException("OpenAI API Key is not configured");
+        }
+
+        var client = new ChatClient(_model, _apiKey);
+
+        var sampleData = SerializeDataTableSample(data, 100);
+
+        var systemPrompt = @"You are a data anomaly detection expert. Analyze query results for unusual patterns:
+- Outliers (values significantly different from the norm)
+- Missing data patterns
+- Unexpected distributions
+- Suspicious values
+- Data integrity issues
+
+Respond in JSON format:
+{
+  ""hasAnomalies"": true/false,
+  ""anomalyCount"": 0,
+  ""anomalies"": [
+    {
+      ""type"": ""outlier|missing_data|suspicious_value|integrity_issue"",
+      ""description"": ""What the anomaly is"",
+      ""affectedRows"": ""Row identifiers or count"",
+      ""severity"": ""high|medium|low"",
+      ""recommendation"": ""What to do about it""
+    }
+  ],
+  ""summary"": ""Overall assessment""
+}";
+
+        var userPrompt = $"SQL Query:\n{sql}\n\nData ({data.Rows.Count} rows):\n{sampleData}\n\nDetect any anomalies.";
+
+        var messages = new List<ChatMessage>
+        {
+            new SystemChatMessage(systemPrompt),
+            new UserChatMessage(userPrompt)
+        };
+
+        try
+        {
+            var response = await client.CompleteChatAsync(messages);
+            var content = response.Value.Content[0].Text;
+
+            var jsonMatch = System.Text.RegularExpressions.Regex.Match(
+                content,
+                @"\{[\s\S]*\}",
+                System.Text.RegularExpressions.RegexOptions.Multiline);
+
+            if (jsonMatch.Success)
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var result = JsonSerializer.Deserialize<AnomalyDetectionResult>(jsonMatch.Value, options);
+                return result ?? new AnomalyDetectionResult { HasAnomalies = false };
+            }
+
+            return new AnomalyDetectionResult { HasAnomalies = false, Summary = "Could not analyze anomalies" };
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Error detecting anomalies: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Semantic search through query history using AI
+    /// </summary>
+    public async Task<List<int>> SemanticSearchHistoryAsync(string searchQuery, List<QueryHistoryEntry> historyEntries)
+    {
+        if (string.IsNullOrEmpty(_apiKey))
+        {
+            throw new InvalidOperationException("OpenAI API Key is not configured");
+        }
+
+        var client = new ChatClient(_model, _apiKey);
+
+        // Limit to recent 100 entries for token management
+        var recentHistory = historyEntries.Take(100).ToList();
+        var historyText = string.Join("\n", recentHistory.Select((e, i) =>
+            $"{i}: {e.NaturalLanguageQuery} | SQL: {e.GeneratedSql?.Substring(0, Math.Min(100, e.GeneratedSql.Length ?? 0))}"));
+
+        var systemPrompt = @"You are a semantic search expert. Find queries that match the user's intent, even if worded differently.
+Consider:
+- Semantic similarity (same meaning, different words)
+- Related queries (similar business questions)
+- SQL pattern matching
+
+Return a JSON array of matching indices (0-based) ordered by relevance:
+[0, 5, 12, ...]
+
+Return only the top 10 most relevant matches.";
+
+        var userPrompt = $"Search Query: {searchQuery}\n\nHistory:\n{historyText}\n\nReturn matching indices.";
+
+        var messages = new List<ChatMessage>
+        {
+            new SystemChatMessage(systemPrompt),
+            new UserChatMessage(userPrompt)
+        };
+
+        try
+        {
+            var response = await client.CompleteChatAsync(messages);
+            var content = response.Value.Content[0].Text;
+
+            var jsonMatch = System.Text.RegularExpressions.Regex.Match(
+                content,
+                @"\[[\s\S]*?\]",
+                System.Text.RegularExpressions.RegexOptions.Multiline);
+
+            if (jsonMatch.Success)
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var indices = JsonSerializer.Deserialize<List<int>>(jsonMatch.Value, options);
+                return indices ?? new List<int>();
+            }
+
+            return new List<int>();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Error in semantic search: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Suggests appropriate visualizations for query results
+    /// </summary>
+    public async Task<VisualizationRecommendations> RecommendVisualizationsAsync(System.Data.DataTable data, string sql)
+    {
+        if (string.IsNullOrEmpty(_apiKey))
+        {
+            throw new InvalidOperationException("OpenAI API Key is not configured");
+        }
+
+        var client = new ChatClient(_model, _apiKey);
+
+        var sampleData = SerializeDataTableSample(data, 20);
+        var columnInfo = string.Join(", ", data.Columns.Cast<System.Data.DataColumn>().Select(c => $"{c.ColumnName}:{c.DataType.Name}"));
+
+        var systemPrompt = @"You are a data visualization expert. Recommend appropriate chart types for query results.
+Consider:
+- Data types (numeric, categorical, temporal)
+- Number of rows and columns
+- Relationships and patterns
+- Best practices for data visualization
+
+Respond in JSON format:
+{
+  ""primaryRecommendation"": {
+    ""chartType"": ""bar|line|pie|scatter|table|heatmap|area"",
+    ""reason"": ""Why this chart type"",
+    ""xAxis"": ""Column name for X axis"",
+    ""yAxis"": ""Column name for Y axis"",
+    ""configuration"": ""Specific configuration tips""
+  },
+  ""alternativeRecommendations"": [
+    {
+      ""chartType"": ""..."",
+      ""reason"": ""...""",
+      ""useCase"": ""When to use this instead""
+    }
+  ],
+  ""insights"": ""What the visualization will reveal""
+}";
+
+        var userPrompt = $"SQL Query:\n{sql}\n\nColumns: {columnInfo}\n\nSample Data:\n{sampleData}\n\nRecommend visualizations.";
+
+        var messages = new List<ChatMessage>
+        {
+            new SystemChatMessage(systemPrompt),
+            new UserChatMessage(userPrompt)
+        };
+
+        try
+        {
+            var response = await client.CompleteChatAsync(messages);
+            var content = response.Value.Content[0].Text;
+
+            var jsonMatch = System.Text.RegularExpressions.Regex.Match(
+                content,
+                @"\{[\s\S]*\}",
+                System.Text.RegularExpressions.RegexOptions.Multiline);
+
+            if (jsonMatch.Success)
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var recommendations = JsonSerializer.Deserialize<VisualizationRecommendations>(jsonMatch.Value, options);
+                return recommendations ?? new VisualizationRecommendations();
+            }
+
+            return new VisualizationRecommendations();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Error recommending visualizations: {ex.Message}", ex);
+        }
+    }
+
     private string SerializeDataTableSample(System.Data.DataTable data, int maxRows)
     {
         var sb = new StringBuilder();
