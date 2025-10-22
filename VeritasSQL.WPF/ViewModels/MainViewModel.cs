@@ -152,6 +152,34 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _schemaChangeDescription = string.Empty;
 
+    // Phase 4-9: Advanced AI Features
+    [ObservableProperty]
+    private QueryCostEstimate? _queryCostEstimate;
+
+    [ObservableProperty]
+    private string _cloudProvider = "azure"; // azure|aws|on-premise
+
+    [ObservableProperty]
+    private CorrelationAnalysis? _correlationAnalysis;
+
+    [ObservableProperty]
+    private StatisticalTestRecommendation? _statisticalTestRecommendation;
+
+    [ObservableProperty]
+    private string _researchQuestion = string.Empty;
+
+    [ObservableProperty]
+    private DataStory? _dataStory;
+
+    [ObservableProperty]
+    private string _storyTone = "professional"; // professional|casual|technical
+
+    [ObservableProperty]
+    private VoiceTranscription? _lastTranscription;
+
+    [ObservableProperty]
+    private bool _isRecording = false;
+
     public MainViewModel(
         ConnectionManager connectionManager,
         SettingsService settingsService,
@@ -1565,6 +1593,285 @@ public partial class MainViewModel : ObservableObject
         ConversationContext = new ConversationContext();
         ChatHistory.Clear();
         StatusMessage = "Conversation cleared";
+    }
+
+    /// <summary>
+    /// Voice-to-SQL: Start recording voice input
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanStartVoiceInput))]
+    private async Task StartVoiceInputAsync(Stream audioStream)
+    {
+        if (audioStream == null) return;
+
+        IsBusy = true;
+        IsRecording = true;
+        StatusMessage = "Transcribing audio...";
+
+        try
+        {
+            var transcription = await _openAIService.TranscribeAudioAsync(audioStream);
+            LastTranscription = transcription;
+            NaturalLanguageQuery = transcription.TranscribedText;
+            StatusMessage = $"Transcribed ({transcription.Language}): {transcription.TranscribedText}";
+
+            // Automatically generate SQL from voice
+            await GenerateSqlAsync();
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "VoiceToSQL",
+                ConnectionProfile = SelectedConnectionProfile?.Name,
+                NaturalLanguageQuery = transcription.TranscribedText,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error transcribing audio: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Voice transcription failed";
+        }
+        finally
+        {
+            IsBusy = false;
+            IsRecording = false;
+        }
+    }
+
+    private bool CanStartVoiceInput() => !IsBusy && !IsRecording;
+
+    /// <summary>
+    /// AI Query Cost Estimator
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanEstimateQueryCost))]
+    private async Task EstimateQueryCostAsync()
+    {
+        if (string.IsNullOrWhiteSpace(GeneratedSql))
+            return;
+
+        IsBusy = true;
+        StatusMessage = "Estimating query cost and resource usage...";
+
+        try
+        {
+            var estimate = await _openAIService.EstimateQueryCostAsync(
+                GeneratedSql,
+                _currentSchema,
+                CloudProvider);
+
+            QueryCostEstimate = estimate;
+            StatusMessage = $"Estimated cost: ${estimate.EstimatedCloudCostUsd:F4} - {estimate.ExecutionTimeCategory} ({estimate.EstimatedExecutionTimeSeconds:F2}s)";
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "EstimateQueryCost",
+                ConnectionProfile = SelectedConnectionProfile?.Name,
+                GeneratedSql = GeneratedSql,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error estimating query cost: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Failed to estimate query cost";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanEstimateQueryCost() => !IsBusy && !string.IsNullOrWhiteSpace(GeneratedSql);
+
+    /// <summary>
+    /// AI Correlation Finder
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanFindCorrelations))]
+    private async Task FindCorrelationsAsync()
+    {
+        if (QueryResults == null || string.IsNullOrWhiteSpace(GeneratedSql))
+            return;
+
+        IsBusy = true;
+        StatusMessage = "Analyzing correlations in data...";
+
+        try
+        {
+            var analysis = await _openAIService.FindCorrelationsAsync(
+                QueryResults,
+                GeneratedSql);
+
+            CorrelationAnalysis = analysis;
+            StatusMessage = $"Found {analysis.Correlations.Count} correlations";
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "FindCorrelations",
+                ConnectionProfile = SelectedConnectionProfile?.Name,
+                GeneratedSql = GeneratedSql,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error finding correlations: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Failed to find correlations";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanFindCorrelations() => !IsBusy && QueryResults != null && QueryResults.Rows.Count > 0;
+
+    /// <summary>
+    /// AI Statistical Test Recommender
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanRecommendStatisticalTests))]
+    private async Task RecommendStatisticalTestsAsync()
+    {
+        if (QueryResults == null || string.IsNullOrWhiteSpace(ResearchQuestion))
+            return;
+
+        IsBusy = true;
+        StatusMessage = "Recommending statistical tests...";
+
+        try
+        {
+            var recommendation = await _openAIService.RecommendStatisticalTestsAsync(
+                QueryResults,
+                ResearchQuestion);
+
+            StatisticalTestRecommendation = recommendation;
+            StatusMessage = $"Recommended {recommendation.RecommendedTests.Count} tests";
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "RecommendStatisticalTests",
+                ConnectionProfile = SelectedConnectionProfile?.Name,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error recommending statistical tests: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Failed to recommend tests";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanRecommendStatisticalTests() => !IsBusy && QueryResults != null && !string.IsNullOrWhiteSpace(ResearchQuestion);
+
+    /// <summary>
+    /// AI Data Storytelling
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanGenerateDataStory))]
+    private async Task GenerateDataStoryAsync()
+    {
+        if (QueryResults == null || string.IsNullOrWhiteSpace(GeneratedSql))
+            return;
+
+        IsBusy = true;
+        StatusMessage = "Creating data story...";
+
+        try
+        {
+            var story = await _openAIService.GenerateDataStoryAsync(
+                QueryResults,
+                GeneratedSql,
+                NaturalLanguageQuery,
+                StoryTone);
+
+            DataStory = story;
+            StatusMessage = $"Story created: {story.Title}";
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "GenerateDataStory",
+                ConnectionProfile = SelectedConnectionProfile?.Name,
+                GeneratedSql = GeneratedSql,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error generating data story: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Failed to generate story";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanGenerateDataStory() => !IsBusy && QueryResults != null && QueryResults.Rows.Count > 0;
+
+    /// <summary>
+    /// Export data story as Word document
+    /// </summary>
+    [RelayCommand]
+    private void ExportDataStory()
+    {
+        if (DataStory == null) return;
+
+        var saveDialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "Word Document (*.docx)|*.docx|PDF Document (*.pdf)|*.pdf|Text File (*.txt)|*.txt",
+            DefaultExt = ".txt",
+            FileName = $"DataStory_{DateTime.Now:yyyyMMdd_HHmmss}"
+        };
+
+        if (saveDialog.ShowDialog() == true)
+        {
+            try
+            {
+                // Export as formatted text for now (Word/PDF would need additional library)
+                var story = DataStory;
+                var content = new StringBuilder();
+                content.AppendLine(story.Title.ToUpper());
+                content.AppendLine(new string('=', 80));
+                content.AppendLine();
+                content.AppendLine("EXECUTIVE SUMMARY");
+                content.AppendLine(new string('-', 80));
+                content.AppendLine(story.ExecutiveSummary);
+                content.AppendLine();
+
+                foreach (var chapter in story.Chapters)
+                {
+                    content.AppendLine(chapter.ChapterTitle.ToUpper());
+                    content.AppendLine(new string('-', 80));
+                    content.AppendLine(chapter.Content);
+                    content.AppendLine();
+                }
+
+                content.AppendLine("CONCLUSION");
+                content.AppendLine(new string('-', 80));
+                content.AppendLine(story.Conclusion);
+                content.AppendLine();
+                content.AppendLine("KEY TAKEAWAYS");
+                content.AppendLine(new string('-', 80));
+                foreach (var takeaway in story.KeyTakeaways)
+                {
+                    content.AppendLine($"• {takeaway}");
+                }
+
+                File.WriteAllText(saveDialog.FileName, content.ToString());
+                StatusMessage = $"Data story exported to {Path.GetFileName(saveDialog.FileName)}";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error exporting data story: {ex.Message}",
+                    "Export Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
     }
 }
 

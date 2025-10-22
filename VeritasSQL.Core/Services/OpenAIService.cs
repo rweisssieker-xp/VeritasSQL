@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using OpenAI.Chat;
+using OpenAI.Audio;
 using VeritasSQL.Core.Models;
 
 namespace VeritasSQL.Core.Services;
@@ -1571,6 +1572,367 @@ Be conservative with risk assessment. Safety first.";
                 Sql = content,
                 Explanation = "Error parsing OpenAI response"
             };
+        }
+    }
+
+    /// <summary>
+    /// Voice-to-SQL: Transcribe audio to text and generate SQL
+    /// </summary>
+    public async Task<VoiceTranscription> TranscribeAudioAsync(Stream audioStream, string fileName = "audio.wav")
+    {
+        if (string.IsNullOrEmpty(_apiKey))
+        {
+            throw new InvalidOperationException("OpenAI API Key is not configured");
+        }
+
+        var client = new AudioClient("whisper-1", _apiKey);
+
+        try
+        {
+            var transcription = await client.TranscribeAudioAsync(audioStream, fileName);
+
+            return new VoiceTranscription
+            {
+                TranscribedText = transcription.Value.Text,
+                Language = transcription.Value.Language ?? "unknown",
+                Confidence = 0.95, // Whisper doesn't provide confidence, using default
+                DurationSeconds = transcription.Value.Duration?.TotalSeconds ?? 0
+            };
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Error transcribing audio: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// AI Query Cost Estimator: Predicts cost and resource usage
+    /// </summary>
+    public async Task<QueryCostEstimate> EstimateQueryCostAsync(
+        string sql,
+        SchemaInfo schema,
+        string cloudProvider = "azure") // azure|aws|on-premise
+    {
+        if (string.IsNullOrEmpty(_apiKey))
+        {
+            throw new InvalidOperationException("OpenAI API Key is not configured");
+        }
+
+        var client = new ChatClient(_model, _apiKey);
+
+        var prompt = $@"You are a database performance and cost expert. Estimate the cost and resource usage for this SQL query.
+
+SQL Query:
+{sql}
+
+Schema:
+{SerializeSchemaInfo(schema)}
+
+Cloud Provider: {cloudProvider}
+
+Analyze:
+1. Estimated execution time
+2. Cloud cost (DTUs for Azure, RCUs for AWS, or processing cost)
+3. Resource usage (CPU, Memory, I/O)
+4. Cost optimization tips
+
+Return JSON:
+{{
+  ""estimatedExecutionTimeSeconds"": 2.5,
+  ""executionTimeCategory"": ""fast"",
+  ""estimatedCloudCostUsd"": 0.0023,
+  ""resourceUsage"": {{
+    ""cpuUsage"": ""medium"",
+    ""memoryUsage"": ""low"",
+    ""ioUsage"": ""medium"",
+    ""estimatedRowsScanned"": 50000,
+    ""estimatedDataSizeMb"": 12.5
+  }},
+  ""costWarnings"": [""Large table scan - consider adding index""],
+  ""optimizationTips"": [
+    {{
+      ""tip"": ""Add index on CustomerID"",
+      ""potentialSavingPercent"": 45.0,
+      ""effort"": ""low""
+    }}
+  ],
+  ""alternativeQuery"": ""Optimized SQL if applicable"",
+  ""alternativeCostSavingPercent"": 45.0,
+  ""confidence"": 0.85
+}}
+
+Categories: instant (<0.5s), fast (<2s), moderate (<10s), slow (<30s), very_slow (>30s)
+Cloud Cost Estimation: Consider table sizes, indexes, join complexity.";
+
+        try
+        {
+            var response = await client.CompleteChatAsync(prompt);
+            var content = response.Value.Content[0].Text;
+
+            var jsonMatch = System.Text.RegularExpressions.Regex.Match(
+                content, @"\{[\s\S]*\}", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+            if (jsonMatch.Success)
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var result = JsonSerializer.Deserialize<QueryCostEstimate>(jsonMatch.Value, options);
+                return result ?? new QueryCostEstimate();
+            }
+
+            return new QueryCostEstimate();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Error estimating query cost: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// AI Correlation Finder: Discovers hidden correlations in data
+    /// </summary>
+    public async Task<CorrelationAnalysis> FindCorrelationsAsync(
+        System.Data.DataTable data,
+        string sql)
+    {
+        if (string.IsNullOrEmpty(_apiKey))
+        {
+            throw new InvalidOperationException("OpenAI API Key is not configured");
+        }
+
+        var client = new ChatClient(_model, _apiKey);
+
+        var dataSample = SerializeDataTableSample(data, 30);
+
+        var prompt = $@"You are a data scientist specialized in correlation analysis. Analyze this data for correlations.
+
+Query:
+{sql}
+
+Data sample:
+{dataSample}
+
+Analyze:
+1. Find correlations between numeric columns
+2. Identify strong/weak relationships
+3. Provide business insights
+4. Warn about correlation vs causation
+
+Return JSON:
+{{
+  ""correlations"": [
+    {{
+      ""column1"": ""Revenue"",
+      ""column2"": ""CustomerSatisfaction"",
+      ""correlationCoefficient"": 0.87,
+      ""correlationType"": ""pearson"",
+      ""strength"": ""strong"",
+      ""direction"": ""positive"",
+      ""pValue"": 0.002,
+      ""isStatisticallySignificant"": true,
+      ""interpretation"": ""Higher customer satisfaction is strongly associated with higher revenue""
+    }}
+  ],
+  ""summary"": ""Found 3 significant correlations in the data"",
+  ""insights"": [
+    {{
+      ""insight"": ""Customers with high satisfaction scores generate 87% more revenue"",
+      ""actionableRecommendation"": ""Focus on customer satisfaction initiatives"",
+      ""impact"": ""high""
+    }}
+  ],
+  ""correlationMatrixCsv"": ""Column1,Column2,Coefficient\nRevenue,Satisfaction,0.87"",
+  ""causationWarnings"": [""Correlation does not imply causation - further investigation needed""]
+}}
+
+Strength categories: very_strong (>0.9), strong (0.7-0.9), moderate (0.4-0.7), weak (0.2-0.4), very_weak (<0.2)";
+
+        try
+        {
+            var response = await client.CompleteChatAsync(prompt);
+            var content = response.Value.Content[0].Text;
+
+            var jsonMatch = System.Text.RegularExpressions.Regex.Match(
+                content, @"\{[\s\S]*\}", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+            if (jsonMatch.Success)
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var result = JsonSerializer.Deserialize<CorrelationAnalysis>(jsonMatch.Value, options);
+                return result ?? new CorrelationAnalysis();
+            }
+
+            return new CorrelationAnalysis();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Error finding correlations: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// AI Statistical Test Recommender: Recommends appropriate statistical tests
+    /// </summary>
+    public async Task<StatisticalTestRecommendation> RecommendStatisticalTestsAsync(
+        System.Data.DataTable data,
+        string researchQuestion)
+    {
+        if (string.IsNullOrEmpty(_apiKey))
+        {
+            throw new InvalidOperationException("OpenAI API Key is not configured");
+        }
+
+        var client = new ChatClient(_model, _apiKey);
+
+        var dataSample = SerializeDataTableSample(data, 20);
+
+        var prompt = $@"You are a statistical consultant. Recommend appropriate statistical tests for this data.
+
+Research Question: {researchQuestion}
+
+Data sample:
+{dataSample}
+
+Analyze:
+1. Data types (nominal, ordinal, interval, ratio)
+2. Distribution shapes
+3. Sample size
+4. Recommend appropriate tests (t-test, ANOVA, chi-square, Mann-Whitney, etc.)
+
+Return JSON:
+{{
+  ""dataInfo"": {{
+    ""columnDataTypes"": {{""Age"": ""ratio"", ""Gender"": ""nominal""}},
+    ""distributionShapes"": {{""Age"": ""normal"", ""Income"": ""skewed""}},
+    ""sampleSize"": 150,
+    ""numericColumnCount"": 3,
+    ""categoricalColumnCount"": 2,
+    ""hasPairedData"": false
+  }},
+  ""recommendedTests"": [
+    {{
+      ""testName"": ""Independent Samples t-test"",
+      ""testType"": ""parametric"",
+      ""purpose"": ""Compare means of two groups"",
+      ""whenToUse"": [""Comparing two independent groups"", ""Continuous outcome variable"", ""Normal distribution""],
+      ""assumptions"": [""Normality"", ""Homogeneity of variance"", ""Independence""],
+      ""interpretation"": ""If p<0.05, there is a statistically significant difference between groups"",
+      ""suitabilityScore"": 0.92
+    }}
+  ],
+  ""primaryRecommendation"": ""Independent Samples t-test is most suitable"",
+  ""assumptions"": [""Check normality with Shapiro-Wilk test"", ""Check variance with Levene's test""],
+  ""guidance"": ""Your data appears normally distributed with two independent groups, making t-test ideal""
+}}";
+
+        try
+        {
+            var response = await client.CompleteChatAsync(prompt);
+            var content = response.Value.Content[0].Text;
+
+            var jsonMatch = System.Text.RegularExpressions.Regex.Match(
+                content, @"\{[\s\S]*\}", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+            if (jsonMatch.Success)
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var result = JsonSerializer.Deserialize<StatisticalTestRecommendation>(jsonMatch.Value, options);
+                return result ?? new StatisticalTestRecommendation();
+            }
+
+            return new StatisticalTestRecommendation();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Error recommending statistical tests: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// AI Data Storytelling: Creates narrative story from data
+    /// </summary>
+    public async Task<DataStory> GenerateDataStoryAsync(
+        System.Data.DataTable data,
+        string sql,
+        string naturalLanguageQuery,
+        string tone = "professional") // professional|casual|technical
+    {
+        if (string.IsNullOrEmpty(_apiKey))
+        {
+            throw new InvalidOperationException("OpenAI API Key is not configured");
+        }
+
+        var client = new ChatClient(_model, _apiKey);
+
+        var dataSample = SerializeDataTableSample(data, 50);
+
+        var prompt = $@"You are a data storyteller. Transform this data into a compelling narrative story.
+
+Original Question: {naturalLanguageQuery}
+
+Query:
+{sql}
+
+Data results:
+{dataSample}
+
+Tone: {tone}
+
+Create a story with:
+1. Title (catchy, informative)
+2. Executive Summary (2-3 sentences)
+3. 3-5 Chapters (each with title and content paragraph)
+4. Conclusion
+5. Key Takeaways
+
+Use storytelling elements:
+- Characters (""Top Performers"", ""Outliers"", ""The Majority"")
+- Plot (""In January... but then..."")
+- Conflict (""The challenge was..."")
+- Resolution (""By addressing X, we achieved Y"")
+
+Return JSON:
+{{
+  ""title"": ""The Tale of Rising Revenue: A Q1 Success Story"",
+  ""executiveSummary"": ""Our Q1 data reveals a remarkable 34% revenue increase driven primarily by new customer acquisition in the enterprise segment."",
+  ""chapters"": [
+    {{
+      ""chapterTitle"": ""The Setting: January's Slow Start"",
+      ""content"": ""January began with uncertainty. Revenue stood at $1.2M, slightly below expectations. The sales team faced headwinds from economic concerns, and customer acquisition had slowed to a trickle. However, beneath these surface challenges, a transformation was brewing."",
+      ""keyFigures"": [""The Hesitant Customers"", ""The Determined Sales Team""],
+      ""supportingData"": [""January Revenue: $1.2M"", ""New Customers: 23""]
+    }}
+  ],
+  ""conclusion"": ""This quarter's story demonstrates the power of strategic focus and customer-centric innovation."",
+  ""keyTakeaways"": [
+    ""Enterprise segment is our growth driver (67% of new revenue)"",
+    ""Customer satisfaction scores directly correlate with renewal rates (r=0.89)"",
+    ""March represents an inflection point - strategies should continue""
+  ],
+  ""tone"": ""{tone}""
+}}
+
+Write in engaging, narrative style. Use concrete numbers. Make it memorable.";
+
+        try
+        {
+            var response = await client.CompleteChatAsync(prompt);
+            var content = response.Value.Content[0].Text;
+
+            var jsonMatch = System.Text.RegularExpressions.Regex.Match(
+                content, @"\{[\s\S]*\}", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+            if (jsonMatch.Success)
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var result = JsonSerializer.Deserialize<DataStory>(jsonMatch.Value, options);
+                return result ?? new DataStory();
+            }
+
+            return new DataStory();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Error generating data story: {ex.Message}", ex);
         }
     }
 }

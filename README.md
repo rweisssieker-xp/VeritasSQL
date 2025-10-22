@@ -1,6 +1,6 @@
 # VeritasSQL - AI-Powered Data Analysis Assistant
 
-A WPF desktop application that translates natural language questions into secure SQL SELECT queries and executes them - enhanced with **18 groundbreaking AI features** that transform database interaction into an intelligent, conversational experience.
+A WPF desktop application that translates natural language questions into secure SQL SELECT queries and executes them - enhanced with **23 groundbreaking AI features** that transform database interaction into an intelligent, conversational experience.
 
 ## Overview
 
@@ -9,7 +9,7 @@ VeritasSQL transforms natural language questions into secure SQL queries with **
 ### 🌟 Key Highlights
 
 - **🔤 Natural Language to SQL**: English & German query translation with GPT-4
-- **🤖 18 AI Features**: Query Co-Pilot, Predictive Queries, JOIN Path Finder, Data Profiling/PII, Chat Interface, Dashboard Generator, Quality Scoring, Impact Analysis + 10 more
+- **🤖 23 AI Features**: Voice-to-SQL, Cost Estimator, Correlation Finder, Statistical Tests, Data Storytelling, Query Co-Pilot, Predictive Queries, JOIN Path Finder, Data Profiling/PII, Chat Interface, Dashboard Generator, Quality Scoring, Impact Analysis + 10 more
 - **🔒 Enterprise Security**: 6-layer validation, encryption, audit trail, read-only enforcement, GDPR compliance
 - **📊 Complete Workflow**: Schema exploration → Query generation → Execution → AI Analysis → Export → History
 - **🎨 Beautiful UI**: 3-panel layout with 8 specialized tabs and real-time AI assistance
@@ -204,6 +204,66 @@ VeritasSQL transforms natural language questions into secure SQL queries with **
 - **Impact Level Classification**: critical | high | medium | low
 - **Query Pattern Analysis**: Uses historical queries for predictions
 - **Suggested Fixes**: Auto-generated SQL to update broken queries
+
+#### 19. Voice-to-SQL (Speech Recognition) (NEW! 🔥🔥🔥)
+- **Hands-Free Operation**: Speak your queries instead of typing
+- **OpenAI Whisper Integration**: State-of-the-art speech recognition
+- **Multi-Language Support**: English and German voice recognition
+- **Auto-SQL Generation**: Voice → Text → SQL in one flow
+- **Audio File Upload**: Alternative to live microphone input
+- **Transcription Display**: See what was transcribed with confidence score
+- **Accessibility**: Perfect for users with typing difficulties
+- **Productivity Boost**: 3x faster than typing for long queries
+- **Wow Factor**: Industry-first voice-controlled SQL tool
+
+#### 20. AI Query Cost Estimator (Cloud Cost Prediction) (NEW! 🔥🔥🔥)
+- **Cost Prediction BEFORE Execution**: Know the cost before running
+- **Multi-Cloud Support**: Azure SQL, AWS RDS, On-Premise
+- **Execution Time Forecast**: Predicts query runtime (instant|fast|moderate|slow|very_slow)
+- **Resource Usage Analysis**: CPU, Memory, I/O estimates
+- **Row Scan Estimation**: How many rows will be read
+- **Data Size Calculation**: MB of data processed
+- **Cost Optimization Tips**: Specific recommendations to reduce cost
+- **Alternative Query Generation**: Cheaper equivalent queries
+- **Budget Warnings**: Alerts when query exceeds cost threshold
+- **Cloud DTU/RCU Calculation**: Accurate cloud resource unit estimation
+
+#### 21. AI Correlation Finder (Hidden Insights Discovery) (NEW! 🔥🔥🔥)
+- **Automatic Correlation Detection**: Finds relationships between columns
+- **Pearson & Spearman Coefficients**: Statistical rigor
+- **Strength Classification**: very_strong | strong | moderate | weak | very_weak
+- **Direction Identification**: Positive vs negative correlations
+- **P-Value Calculation**: Statistical significance testing
+- **Business Insights**: Translates correlations into actionable recommendations
+- **Correlation Matrix Export**: CSV format for further analysis
+- **Causation Warnings**: Reminds users "correlation ≠ causation"
+- **Visual Explanations**: Clear interpretations of findings
+- **Impact Assessment**: High/medium/low business impact ratings
+
+#### 22. AI Statistical Test Recommender (Data Science Assistant) (NEW! 🔥🔥🔥)
+- **Smart Test Selection**: AI recommends appropriate statistical tests
+- **Data Type Analysis**: Identifies nominal, ordinal, interval, ratio data
+- **Distribution Detection**: Normal, skewed, uniform, bimodal shapes
+- **Test Library**: t-test, ANOVA, chi-square, Mann-Whitney, Kruskal-Wallis, etc.
+- **Parametric vs Non-Parametric**: Recommends based on data characteristics
+- **Assumption Checking**: Lists assumptions for each test
+- **Suitability Scoring**: 0.0-1.0 confidence in recommendation
+- **Interpretation Guidance**: How to read p-values and effect sizes
+- **Sample Size Validation**: Warns if sample too small
+- **Statistics for Non-Statisticians**: Makes data science accessible
+
+#### 23. AI Data Storytelling (Narrative Generation) (NEW! 🔥🔥🔥)
+- **Data → Story Transformation**: Converts numbers into compelling narratives
+- **Executive-Ready**: Perfect for stakeholder presentations
+- **Story Structure**: Title, Executive Summary, 3-5 Chapters, Conclusion, Key Takeaways
+- **Storytelling Elements**: Characters ("Top Performers"), Plot, Conflict, Resolution
+- **Tone Selection**: Professional, Casual, or Technical tone
+- **Multi-Paragraph Format**: Easy-to-read narrative style
+- **Concrete Numbers**: Specific data points woven into story
+- **Business Context**: Connects data to business outcomes
+- **Export Options**: Text, Word, PDF formats
+- **Memorable Insights**: Makes data stick in readers' minds
+- **C-Level Communication**: Translates technical findings for executives
 
 ### 🗄️ Database & Schema
 

@@ -106,4 +106,50 @@ public partial class MainWindow : Window
             _viewModel.LoadHistoryEntryCommand.Execute(entry);
         }
     }
+
+    /// <summary>
+    /// Voice Input Button Click Handler
+    /// Note: Full implementation requires audio recording library (e.g., NAudio)
+    /// This is a placeholder showing the concept
+    /// </summary>
+    private async void VoiceInputButton_Click(object sender, RoutedEventArgs e)
+    {
+        // Placeholder implementation - in production, would use NAudio or similar
+        var result = MessageBox.Show(
+            "Voice Input Feature\n\n" +
+            "To use voice input:\n" +
+            "1. Install NAudio NuGet package\n" +
+            "2. Record audio from microphone\n" +
+            "3. Save as WAV file\n" +
+            "4. Pass to OpenAI Whisper API\n\n" +
+            "For now, you can manually upload an audio file instead.\n\n" +
+            "Would you like to select an audio file?",
+            "Voice Input",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Information);
+
+        if (result != MessageBoxResult.Yes)
+            return;
+
+        // Demo: Allow user to select existing audio file
+        var openDialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Filter = "Audio Files (*.wav;*.mp3;*.m4a)|*.wav;*.mp3;*.m4a|All Files (*.*)|*.*",
+            Title = "Select Audio File for Transcription"
+        };
+
+        if (openDialog.ShowDialog() == true)
+        {
+            try
+            {
+                using var fileStream = System.IO.File.OpenRead(openDialog.FileName);
+                await _viewModel.StartVoiceInputCommand.ExecuteAsync(fileStream);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error processing audio file: {ex.Message}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+    }
 }

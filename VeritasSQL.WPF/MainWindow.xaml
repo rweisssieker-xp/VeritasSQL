@@ -347,12 +347,20 @@
 
                 <!-- Natural Language Input -->
                 <DockPanel Grid.Row="0" Margin="10">
-                    <Button DockPanel.Dock="Right" Content="Generate SQL" 
-                            Command="{Binding GenerateSqlCommand}"
-                            Height="60" Width="120" Margin="5,0,0,0"
-                            ToolTip="Generate SQL SELECT statement from natural language question using OpenAI"/>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Vertical">
+                        <Button Content="Generate SQL"
+                                Command="{Binding GenerateSqlCommand}"
+                                Height="30" Width="120" Margin="5,0,0,0"
+                                ToolTip="Generate SQL SELECT statement from natural language question using OpenAI"/>
+                        <!-- Voice-to-SQL Button -->
+                        <Button Content="🎤 Voice Input"
+                                Height="25" Width="120" Margin="5,5,0,0"
+                                Background="#FF5722" Foreground="White"
+                                ToolTip="Speak your query (requires microphone)&#x0a;Note: Requires audio recording implementation"
+                                Click="VoiceInputButton_Click"/>
+                    </StackPanel>
                     <DockPanel>
-                        <TextBlock DockPanel.Dock="Top" Text="Your question in natural language:" 
+                        <TextBlock DockPanel.Dock="Top" Text="Your question in natural language:"
                                    FontWeight="Bold" Margin="0,0,0,5"/>
                         <TextBox Text="{Binding NaturalLanguageQuery, UpdateSourceTrigger=PropertyChanged}"
                                  TextWrapping="Wrap" AcceptsReturn="True"
@@ -425,6 +433,21 @@
                                         Margin="5,0"
                                         Background="#00BCD4" Foreground="White"
                                         ToolTip="Get AI recommendations for data visualization"/>
+                                <Button Content="🔗 Find Correlations"
+                                        Command="{Binding FindCorrelationsCommand}"
+                                        Margin="5,0"
+                                        Background="#9C27B0" Foreground="White"
+                                        ToolTip="AI discovers hidden correlations in data"/>
+                                <Button Content="📈 Statistical Tests"
+                                        Command="{Binding RecommendStatisticalTestsCommand}"
+                                        Margin="5,0"
+                                        Background="#3F51B5" Foreground="White"
+                                        ToolTip="AI recommends appropriate statistical tests"/>
+                                <Button Content="📖 Data Story"
+                                        Command="{Binding GenerateDataStoryCommand}"
+                                        Margin="5,0"
+                                        Background="#E91E63" Foreground="White"
+                                        ToolTip="Transform data into narrative story"/>
                             </StackPanel>
 
                             <DataGrid Grid.Row="1"
@@ -647,6 +670,164 @@
                                                               TextWrapping="Wrap" Margin="0,5,0,0"/>
                                                 </StackPanel>
                                             </Border>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Border>
+                            </Expander>
+
+                            <!-- Correlation Analysis Panel -->
+                            <Expander Grid.Row="2"
+                                     Header="🔗 Correlation Analysis"
+                                     IsExpanded="False"
+                                     Visibility="{Binding CorrelationAnalysis, Converter={StaticResource NullToVisibilityConverter}}"
+                                     Margin="5">
+                                <Border BorderBrush="#9C27B0" BorderThickness="2" Padding="10"
+                                        Background="#F3E5F5">
+                                    <ScrollViewer MaxHeight="250" VerticalScrollBarVisibility="Auto">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding CorrelationAnalysis.Summary}"
+                                                      FontWeight="Bold" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                            <TextBlock Text="Top Correlations:" FontWeight="Bold" Margin="0,5,0,5"/>
+                                            <ItemsControl ItemsSource="{Binding CorrelationAnalysis.Correlations}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border BorderBrush="#9C27B0" BorderThickness="1"
+                                                               Padding="8" Margin="0,3" Background="White">
+                                                            <StackPanel>
+                                                                <TextBlock FontWeight="Bold">
+                                                                    <Run Text="{Binding Column1}"/>
+                                                                    <Run Text=" ↔ "/>
+                                                                    <Run Text="{Binding Column2}"/>
+                                                                </TextBlock>
+                                                                <TextBlock>
+                                                                    <Run Text="Coefficient: "/>
+                                                                    <Run Text="{Binding CorrelationCoefficient, StringFormat={}{0:F3}}" FontWeight="Bold"/>
+                                                                    <Run Text=" ("/>
+                                                                    <Run Text="{Binding Strength}"/>
+                                                                    <Run Text=", "/>
+                                                                    <Run Text="{Binding Direction}"/>
+                                                                    <Run Text=")"/>
+                                                                </TextBlock>
+                                                                <TextBlock Text="{Binding Interpretation}"
+                                                                          TextWrapping="Wrap" FontStyle="Italic" Margin="0,3,0,0"/>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <TextBlock Text="⚠️ Causation Warnings:" FontWeight="Bold" Margin="0,10,0,5"
+                                                      Visibility="{Binding CorrelationAnalysis.CausationWarnings.Count, Converter={StaticResource NullToVisibilityConverter}}"/>
+                                            <ItemsControl ItemsSource="{Binding CorrelationAnalysis.CausationWarnings}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding}"
+                                                                  TextWrapping="Wrap" Margin="15,2,0,2" Foreground="Red"/>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Border>
+                            </Expander>
+
+                            <!-- Statistical Test Recommendation Panel -->
+                            <Expander Grid.Row="2"
+                                     Header="📈 Statistical Test Recommendations"
+                                     IsExpanded="False"
+                                     Visibility="{Binding StatisticalTestRecommendation, Converter={StaticResource NullToVisibilityConverter}}"
+                                     Margin="5">
+                                <Border BorderBrush="#3F51B5" BorderThickness="2" Padding="10"
+                                        Background="#E8EAF6">
+                                    <ScrollViewer MaxHeight="250" VerticalScrollBarVisibility="Auto">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding StatisticalTestRecommendation.PrimaryRecommendation}"
+                                                      FontWeight="Bold" FontSize="13" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                            <TextBlock Text="Recommended Tests:" FontWeight="Bold" Margin="0,5,0,5"/>
+                                            <ItemsControl ItemsSource="{Binding StatisticalTestRecommendation.RecommendedTests}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border BorderBrush="#3F51B5" BorderThickness="1"
+                                                               Padding="8" Margin="0,3" Background="White">
+                                                            <StackPanel>
+                                                                <TextBlock FontWeight="Bold">
+                                                                    <Run Text="{Binding TestName}"/>
+                                                                    <Run Text=" ("/>
+                                                                    <Run Text="{Binding TestType}"/>
+                                                                    <Run Text=")"/>
+                                                                </TextBlock>
+                                                                <TextBlock Text="{Binding Purpose}"
+                                                                          FontStyle="Italic" Margin="0,3,0,0"/>
+                                                                <TextBlock>
+                                                                    <Run Text="Suitability: "/>
+                                                                    <Run Text="{Binding SuitabilityScore, StringFormat={}{0:P0}}" FontWeight="Bold"/>
+                                                                </TextBlock>
+                                                                <TextBlock Text="{Binding Interpretation}"
+                                                                          TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Border>
+                            </Expander>
+
+                            <!-- Data Story Panel -->
+                            <Expander Grid.Row="2"
+                                     Header="📖 Data Story"
+                                     IsExpanded="True"
+                                     Visibility="{Binding DataStory, Converter={StaticResource NullToVisibilityConverter}}"
+                                     Margin="5">
+                                <Border BorderBrush="#E91E63" BorderThickness="2" Padding="10"
+                                        Background="#FCE4EC">
+                                    <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding DataStory.Title}"
+                                                      FontWeight="Bold" FontSize="16" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                            <TextBlock Text="Executive Summary" FontWeight="Bold" Margin="0,5,0,3"/>
+                                            <TextBlock Text="{Binding DataStory.ExecutiveSummary}"
+                                                      TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                            <TextBlock Text="Story:" FontWeight="Bold" Margin="0,10,0,5"/>
+                                            <ItemsControl ItemsSource="{Binding DataStory.Chapters}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Margin="0,5">
+                                                            <TextBlock Text="{Binding ChapterTitle}"
+                                                                      FontWeight="Bold" FontSize="13"/>
+                                                            <TextBlock Text="{Binding Content}"
+                                                                      TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <TextBlock Text="Conclusion" FontWeight="Bold" Margin="0,10,0,3"/>
+                                            <TextBlock Text="{Binding DataStory.Conclusion}"
+                                                      TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                            <TextBlock Text="Key Takeaways:" FontWeight="Bold" Margin="0,10,0,5"/>
+                                            <ItemsControl ItemsSource="{Binding DataStory.KeyTakeaways}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock TextWrapping="Wrap" Margin="15,2,0,2">
+                                                            <Run Text="• "/>
+                                                            <Run Text="{Binding}"/>
+                                                        </TextBlock>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <Button Content="Export Story"
+                                                   Command="{Binding ExportDataStoryCommand}"
+                                                   Margin="0,10,0,0"
+                                                   Background="#E91E63" Foreground="White"
+                                                   HorizontalAlignment="Left"/>
                                         </StackPanel>
                                     </ScrollViewer>
                                 </Border>
@@ -980,6 +1161,55 @@
                                                 <Run Text="Est. Downtime: "/>
                                                 <Run Text="{Binding ImpactAnalysis.EstimatedDowntimeMinutes}" FontWeight="Bold"/>
                                                 <Run Text=" minutes"/>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </DockPanel>
+                        </GroupBox>
+
+                        <!-- AI Query Cost Estimator -->
+                        <GroupBox DockPanel.Dock="Top" Header="💰 Query Cost Estimator" Margin="10">
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Top" Margin="5">
+                                    <TextBlock Text="Cloud Provider:" Margin="0,0,0,2"/>
+                                    <ComboBox SelectedValue="{Binding CloudProvider}" Margin="0,0,0,5">
+                                        <ComboBoxItem Content="Azure SQL" Tag="azure" IsSelected="True"/>
+                                        <ComboBoxItem Content="AWS RDS" Tag="aws"/>
+                                        <ComboBoxItem Content="On-Premise" Tag="on-premise"/>
+                                    </ComboBox>
+                                </StackPanel>
+                                <Button DockPanel.Dock="Top"
+                                       Content="Estimate Cost"
+                                       Command="{Binding EstimateQueryCostCommand}"
+                                       HorizontalAlignment="Left"
+                                       Margin="5"
+                                       Background="#FF9800" Foreground="White"
+                                       ToolTip="Predict query cost BEFORE execution"/>
+
+                                <StackPanel Visibility="{Binding QueryCostEstimate, Converter={StaticResource NullToVisibilityConverter}}">
+                                    <Border Background="#FFF3E0" Padding="8" Margin="5">
+                                        <StackPanel>
+                                            <TextBlock Text="Estimated Cost" FontWeight="Bold"/>
+                                            <TextBlock FontSize="20" FontWeight="Bold" Foreground="#FF6F00">
+                                                <Run Text="$"/>
+                                                <Run Text="{Binding QueryCostEstimate.EstimatedCloudCostUsd, StringFormat={}{0:F4}}"/>
+                                            </TextBlock>
+                                            <TextBlock>
+                                                <Run Text="Time: "/>
+                                                <Run Text="{Binding QueryCostEstimate.EstimatedExecutionTimeSeconds, StringFormat={}{0:F2}}"/>
+                                                <Run Text="s ("/>
+                                                <Run Text="{Binding QueryCostEstimate.ExecutionTimeCategory}"/>
+                                                <Run Text=")"/>
+                                            </TextBlock>
+                                            <TextBlock Text="Resource Usage:" FontWeight="Bold" Margin="0,5,0,2"/>
+                                            <TextBlock>
+                                                <Run Text="CPU: "/>
+                                                <Run Text="{Binding QueryCostEstimate.ResourceUsage.CpuUsage}"/>
+                                            </TextBlock>
+                                            <TextBlock>
+                                                <Run Text="Rows Scanned: "/>
+                                                <Run Text="{Binding QueryCostEstimate.ResourceUsage.EstimatedRowsScanned, StringFormat={}{0:N0}}"/>
                                             </TextBlock>
                                         </StackPanel>
                                     </Border>
