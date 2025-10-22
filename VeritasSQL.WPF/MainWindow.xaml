@@ -331,6 +331,178 @@
                             </ScrollViewer>
                         </DockPanel>
                     </TabItem>
+
+                    <!-- Predictive Trends Tab -->
+                    <TabItem Header="📈 Trends">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top" Margin="10">
+                                <TextBlock Text="Predictive Data Trends" FontWeight="Bold" Margin="0,0,0,10"/>
+
+                                <TextBlock Text="Date Column:" Margin="0,5,0,2"/>
+                                <TextBox Text="{Binding TrendDateColumn, UpdateSourceTrigger=PropertyChanged}"
+                                        Padding="5" Margin="0,0,0,5"/>
+
+                                <TextBlock Text="Value Column:" Margin="0,5,0,2"/>
+                                <TextBox Text="{Binding TrendValueColumn, UpdateSourceTrigger=PropertyChanged}"
+                                        Padding="5" Margin="0,0,0,5"/>
+
+                                <TextBlock Text="Forecast Days:" Margin="0,5,0,2"/>
+                                <TextBox Text="{Binding ForecastDays, UpdateSourceTrigger=PropertyChanged}"
+                                        Padding="5" Margin="0,0,0,10"/>
+
+                                <Button Content="Predict Trends"
+                                        Command="{Binding PredictDataTrendsCommand}"
+                                        Background="#4CAF50" Foreground="White"
+                                        Padding="10,5"/>
+                            </StackPanel>
+
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <Border BorderBrush="#4CAF50" BorderThickness="2"
+                                        Margin="10" Padding="10" CornerRadius="5"
+                                        Background="#E8F5E9"
+                                        Visibility="{Binding PredictiveTrends, Converter={StaticResource NullToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding PredictiveTrends.Summary}"
+                                                  FontWeight="Bold" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                        <TextBlock Text="Trend Direction:" FontWeight="Bold" Margin="0,5,0,2"/>
+                                        <TextBlock Text="{Binding PredictiveTrends.TrendDirection.Interpretation}"
+                                                  TextWrapping="Wrap" Margin="5,0,0,5"/>
+
+                                        <TextBlock Text="Seasonality:" FontWeight="Bold" Margin="0,5,0,2"/>
+                                        <TextBlock Text="{Binding PredictiveTrends.SeasonalityPattern}"
+                                                  Margin="5,0,0,5"/>
+
+                                        <TextBlock Text="Key Insights:" FontWeight="Bold" Margin="0,10,0,5"/>
+                                        <ItemsControl ItemsSource="{Binding PredictiveTrends.Insights}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding}"
+                                                              TextWrapping="Wrap" Margin="15,2,0,2"/>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <TextBlock Text="Predicted Anomalies:" FontWeight="Bold" Margin="0,10,0,5"
+                                                  Visibility="{Binding PredictiveTrends.PredictedAnomalies.Count, Converter={StaticResource NullToVisibilityConverter}}"/>
+                                        <ItemsControl ItemsSource="{Binding PredictiveTrends.PredictedAnomalies}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="#FF5722" BorderThickness="1"
+                                                           Padding="5" Margin="5,2" Background="#FFEBEE">
+                                                        <StackPanel>
+                                                            <TextBlock>
+                                                                <Run Text="{Binding ExpectedDate, StringFormat={}{0:yyyy-MM-dd}}" FontWeight="Bold"/>
+                                                                <Run Text=" - "/>
+                                                                <Run Text="{Binding AnomalyType}"/>
+                                                            </TextBlock>
+                                                            <TextBlock Text="{Binding Reason}"
+                                                                      TextWrapping="Wrap" FontStyle="Italic"/>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </TabItem>
+
+                    <!-- Index Recommendations Tab -->
+                    <TabItem Header="⚡ Indexes">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Top" Content="Analyze & Recommend Indexes"
+                                    Command="{Binding RecommendIndexesCommand}"
+                                    Margin="10"
+                                    Background="#FF9800" Foreground="White"
+                                    ToolTip="AI analyzes query history and recommends missing indexes"/>
+
+                            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                         Visibility="{Binding IndexRecommendations, Converter={StaticResource NullToVisibilityConverter}}">
+                                <StackPanel Margin="10">
+                                    <TextBlock Text="{Binding IndexRecommendations.Summary}"
+                                              FontWeight="Bold" FontSize="13"
+                                              TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                    <TextBlock>
+                                        <Run Text="Estimated Performance Gain: "/>
+                                        <Run Text="{Binding IndexRecommendations.EstimatedPerformanceGain, StringFormat={}{0:F1}%}" FontWeight="Bold" Foreground="#4CAF50"/>
+                                    </TextBlock>
+
+                                    <TextBlock Text="Recommended Indexes:" FontWeight="Bold" Margin="0,15,0,5"/>
+                                    <ItemsControl ItemsSource="{Binding IndexRecommendations.Recommendations}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border BorderBrush="#FF9800" BorderThickness="2"
+                                                       Margin="0,5" Padding="10" CornerRadius="5"
+                                                       Background="#FFF3E0">
+                                                    <StackPanel>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <Border Background="#FF6F00" Padding="3,1" CornerRadius="2">
+                                                                <TextBlock Text="{Binding Priority}"
+                                                                          Foreground="White" FontSize="10"/>
+                                                            </Border>
+                                                            <TextBlock Text="{Binding TableName}"
+                                                                      FontWeight="Bold" FontSize="13"
+                                                                      Margin="10,0,0,0"/>
+                                                        </StackPanel>
+
+                                                        <TextBlock Text="{Binding Reasoning}"
+                                                                  TextWrapping="Wrap" Margin="0,5"/>
+
+                                                        <TextBlock FontWeight="Bold" Margin="0,5,0,2">
+                                                            <Run Text="Improvement: "/>
+                                                            <Run Text="{Binding EstimatedImprovementPercent, StringFormat={}{0:F1}%}"/>
+                                                            <Run Text=" | Affects "/>
+                                                            <Run Text="{Binding AffectedQueriesCount}"/>
+                                                            <Run Text=" queries"/>
+                                                        </TextBlock>
+
+                                                        <Border Background="White" Padding="5" Margin="0,5">
+                                                            <TextBlock Text="{Binding CreateIndexSql}"
+                                                                      FontFamily="Consolas" FontSize="10"
+                                                                      TextWrapping="Wrap"/>
+                                                        </Border>
+
+                                                        <Button Content="📋 Copy SQL"
+                                                               Command="{Binding DataContext.CopyIndexSqlCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                               CommandParameter="{Binding}"
+                                                               Margin="0,5,0,0"
+                                                               HorizontalAlignment="Left"
+                                                               Background="#FF9800" Foreground="White"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <TextBlock Text="Index Health Assessment:" FontWeight="Bold" Margin="0,15,0,5"/>
+                                    <Border BorderBrush="#2196F3" BorderThickness="1"
+                                           Padding="10" Background="#E3F2FD">
+                                        <StackPanel>
+                                            <TextBlock>
+                                                <Run Text="Overall Health: "/>
+                                                <Run Text="{Binding IndexRecommendations.HealthAssessment.OverallHealth}" FontWeight="Bold"/>
+                                            </TextBlock>
+                                            <TextBlock>
+                                                <Run Text="Total Indexes: "/>
+                                                <Run Text="{Binding IndexRecommendations.HealthAssessment.TotalIndexes}"/>
+                                            </TextBlock>
+                                            <TextBlock>
+                                                <Run Text="Unused: "/>
+                                                <Run Text="{Binding IndexRecommendations.HealthAssessment.UnusedIndexes}" Foreground="Red"/>
+                                            </TextBlock>
+                                            <TextBlock>
+                                                <Run Text="Fragmented: "/>
+                                                <Run Text="{Binding IndexRecommendations.HealthAssessment.FragmentedIndexes}" Foreground="Orange"/>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </TabItem>
                 </TabControl>
             </Border>
 

@@ -1935,5 +1935,217 @@ Write in engaging, narrative style. Use concrete numbers. Make it memorable.";
             throw new InvalidOperationException($"Error generating data story: {ex.Message}", ex);
         }
     }
+
+    /// <summary>
+    /// Predictive Data Trends: Forecasts future values based on historical data
+    /// </summary>
+    public async Task<PredictiveTrendAnalysis> PredictDataTrendsAsync(
+        System.Data.DataTable data,
+        string dateColumn,
+        string valueColumn,
+        int forecastDays = 30)
+    {
+        if (string.IsNullOrEmpty(_apiKey))
+        {
+            throw new InvalidOperationException("OpenAI API Key is not configured");
+        }
+
+        var client = new ChatClient(_model, _apiKey);
+
+        var dataSample = SerializeDataTableSample(data, 100); // More data for trend analysis
+
+        var prompt = $@"You are a time series forecasting expert. Analyze historical data and predict future trends.
+
+Date Column: {dateColumn}
+Value Column: {valueColumn}
+Forecast Period: {forecastDays} days
+
+Historical data:
+{dataSample}
+
+Analyze:
+1. Trend direction (upward, downward, stable, volatile)
+2. Seasonality patterns (daily, weekly, monthly, yearly)
+3. Forecast next {forecastDays} days with confidence intervals
+4. Predict potential anomalies
+5. Business insights
+
+Return JSON:
+{{
+  ""analyzedColumn"": ""{valueColumn}"",
+  ""trendDirection"": {{
+    ""direction"": ""upward"",
+    ""slope"": 0.05,
+    ""changePercentage"": 12.5,
+    ""interpretation"": ""Values are increasing steadily at 12.5% over the period""
+  }},
+  ""forecast"": [
+    {{
+      ""date"": ""2024-01-15T00:00:00"",
+      ""predictedValue"": 1250.5,
+      ""lowerBound"": 1100.0,
+      ""upperBound"": 1400.0,
+      ""confidence"": 0.85
+    }}
+  ],
+  ""forecastDays"": {forecastDays},
+  ""seasonalityPattern"": ""weekly"",
+  ""predictedAnomalies"": [
+    {{
+      ""expectedDate"": ""2024-01-20T00:00:00"",
+      ""anomalyType"": ""spike"",
+      ""reason"": ""Weekend effect detected"",
+      ""probability"": 0.75,
+      ""recommendedAction"": ""Monitor closely, may indicate increased demand""
+    }}
+  ],
+  ""forecastConfidence"": 0.82,
+  ""summary"": ""Upward trend with weekly seasonality detected. Forecast shows 12.5% growth over next 30 days."",
+  ""insights"": [
+    ""Peak values occur on Fridays"",
+    ""Gradual upward trajectory suggests sustained growth"",
+    ""Confidence decreases after day 21 due to longer time horizon""
+  ]
+}}
+
+Use statistical forecasting principles. Be realistic about confidence intervals.";
+
+        try
+        {
+            var response = await client.CompleteChatAsync(prompt);
+            var content = response.Value.Content[0].Text;
+
+            var jsonMatch = System.Text.RegularExpressions.Regex.Match(
+                content, @"\{[\s\S]*\}", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+            if (jsonMatch.Success)
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var result = JsonSerializer.Deserialize<PredictiveTrendAnalysis>(jsonMatch.Value, options);
+                return result ?? new PredictiveTrendAnalysis();
+            }
+
+            return new PredictiveTrendAnalysis();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Error predicting data trends: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// AI Index Recommendation Engine: Analyzes query patterns and recommends missing indexes
+    /// </summary>
+    public async Task<IndexRecommendationResult> RecommendIndexesAsync(
+        SchemaInfo schema,
+        List<QueryHistoryEntry> historicalQueries)
+    {
+        if (string.IsNullOrEmpty(_apiKey))
+        {
+            throw new InvalidOperationException("OpenAI API Key is not configured");
+        }
+
+        var client = new ChatClient(_model, _apiKey);
+
+        // Analyze query patterns
+        var queryPatterns = string.Join("\n", historicalQueries
+            .GroupBy(q => q.Sql)
+            .OrderByDescending(g => g.Count())
+            .Take(20)
+            .Select(g => $"Executed {g.Count()}x (avg {g.Average(q => q.ExecutionTimeMs):F0}ms): {g.Key}"));
+
+        var prompt = $@"You are a database performance optimization expert. Analyze query patterns and recommend missing indexes.
+
+Schema:
+{SerializeSchemaInfo(schema)}
+
+Top 20 query patterns (by frequency):
+{queryPatterns}
+
+Analyze:
+1. Identify slow queries (high execution time or frequency)
+2. Detect missing indexes on WHERE, JOIN, ORDER BY columns
+3. Recommend covering indexes where beneficial
+4. Assess existing index health
+5. Provide CREATE INDEX statements
+
+Return JSON:
+{{
+  ""recommendations"": [
+    {{
+      ""tableName"": ""Orders"",
+      ""columns"": [""CustomerID"", ""OrderDate""],
+      ""indexType"": ""nonclustered"",
+      ""createIndexSql"": ""CREATE NONCLUSTERED INDEX IX_Orders_CustomerID_OrderDate ON Orders(CustomerID, OrderDate)"",
+      ""affectedQueriesCount"": 15,
+      ""estimatedImprovementPercent"": 67.0,
+      ""reasoning"": ""15 queries filter by CustomerID and OrderDate - currently doing table scans"",
+      ""priority"": ""high"",
+      ""isCoveringIndex"": false,
+      ""includedColumns"": []
+    }},
+    {{
+      ""tableName"": ""Products"",
+      ""columns"": [""CategoryID""],
+      ""indexType"": ""covering"",
+      ""createIndexSql"": ""CREATE NONCLUSTERED INDEX IX_Products_CategoryID_INCLUDE_Name_Price ON Products(CategoryID) INCLUDE (ProductName, Price)"",
+      ""affectedQueriesCount"": 8,
+      ""estimatedImprovementPercent"": 85.0,
+      ""reasoning"": ""Covering index eliminates key lookups for frequently accessed columns"",
+      ""priority"": ""critical"",
+      ""isCoveringIndex"": true,
+      ""includedColumns"": [""ProductName"", ""Price""]
+    }}
+  ],
+  ""slowQueries"": [
+    {{
+      ""queryPattern"": ""SELECT * FROM Orders WHERE CustomerID = ?"",
+      ""sql"": ""SELECT * FROM Orders WHERE CustomerID = 123"",
+      ""averageExecutionTimeMs"": 2500.0,
+      ""executionCount"": 45,
+      ""missingIndexes"": [""IX_Orders_CustomerID""],
+      ""bottleneckType"": ""table_scan"",
+      ""recommendedFix"": ""Add index on CustomerID column""
+    }}
+  ],
+  ""healthAssessment"": {{
+    ""totalIndexes"": 12,
+    ""unusedIndexes"": 2,
+    ""duplicateIndexes"": 1,
+    ""fragmentedIndexes"": 3,
+    ""maintenanceRecommendations"": [
+      ""Drop unused index IX_OldIndex (not used in 90 days)"",
+      ""Rebuild fragmented index IX_Products_Name (fragmentation: 45%)""
+    ],
+    ""overallHealth"": ""fair""
+  }},
+  ""summary"": ""Analysis found 3 high-impact missing indexes that could improve performance by 60-85%"",
+  ""estimatedPerformanceGain"": 73.5
+}}
+
+Focus on high-impact indexes. Consider query frequency and execution time.";
+
+        try
+        {
+            var response = await client.CompleteChatAsync(prompt);
+            var content = response.Value.Content[0].Text;
+
+            var jsonMatch = System.Text.RegularExpressions.Regex.Match(
+                content, @"\{[\s\S]*\}", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+            if (jsonMatch.Success)
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var result = JsonSerializer.Deserialize<IndexRecommendationResult>(jsonMatch.Value, options);
+                return result ?? new IndexRecommendationResult();
+            }
+
+            return new IndexRecommendationResult();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Error recommending indexes: {ex.Message}", ex);
+        }
+    }
 }
 

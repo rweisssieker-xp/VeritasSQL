@@ -180,6 +180,23 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isRecording = false;
 
+    // Predictive Data Trends
+    [ObservableProperty]
+    private PredictiveTrendAnalysis? _predictiveTrends;
+
+    [ObservableProperty]
+    private string _trendDateColumn = string.Empty;
+
+    [ObservableProperty]
+    private string _trendValueColumn = string.Empty;
+
+    [ObservableProperty]
+    private int _forecastDays = 30;
+
+    // AI Index Recommendations
+    [ObservableProperty]
+    private IndexRecommendationResult? _indexRecommendations;
+
     public MainViewModel(
         ConnectionManager connectionManager,
         SettingsService settingsService,
@@ -1871,6 +1888,116 @@ public partial class MainViewModel : ObservableObject
                 MessageBox.Show($"Error exporting data story: {ex.Message}",
                     "Export Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+    }
+
+    /// <summary>
+    /// Predictive Data Trends
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanPredictTrends))]
+    private async Task PredictDataTrendsAsync()
+    {
+        if (QueryResults == null || string.IsNullOrWhiteSpace(TrendDateColumn) || string.IsNullOrWhiteSpace(TrendValueColumn))
+            return;
+
+        IsBusy = true;
+        StatusMessage = $"Predicting trends for next {ForecastDays} days...";
+
+        try
+        {
+            var trends = await _openAIService.PredictDataTrendsAsync(
+                QueryResults,
+                TrendDateColumn,
+                TrendValueColumn,
+                ForecastDays);
+
+            PredictiveTrends = trends;
+            StatusMessage = $"Forecast complete: {trends.TrendDirection.Direction} trend, {trends.ForecastConfidence:P0} confidence";
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "PredictDataTrends",
+                ConnectionProfile = SelectedConnectionProfile?.Name,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error predicting trends: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Failed to predict trends";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanPredictTrends() => !IsBusy && QueryResults != null && !string.IsNullOrWhiteSpace(TrendDateColumn) && !string.IsNullOrWhiteSpace(TrendValueColumn);
+
+    /// <summary>
+    /// AI Index Recommendation Engine
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanRecommendIndexes))]
+    private async Task RecommendIndexesAsync()
+    {
+        if (History.Count == 0)
+        {
+            MessageBox.Show("No query history available. Execute some queries first to analyze patterns.",
+                "No History", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        IsBusy = true;
+        StatusMessage = "Analyzing query patterns and recommending indexes...";
+
+        try
+        {
+            var recommendations = await _openAIService.RecommendIndexesAsync(
+                _currentSchema,
+                History.ToList());
+
+            IndexRecommendations = recommendations;
+            StatusMessage = $"Found {recommendations.Recommendations.Count} index recommendations ({recommendations.EstimatedPerformanceGain:F1}% avg improvement)";
+
+            await _auditLogger.LogAsync(new AuditEntry
+            {
+                Action = "RecommendIndexes",
+                ConnectionProfile = SelectedConnectionProfile?.Name,
+                ExecutionStatus = "Success"
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error recommending indexes: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Failed to recommend indexes";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanRecommendIndexes() => !IsBusy && History.Count > 0;
+
+    /// <summary>
+    /// Copy index CREATE statement to clipboard
+    /// </summary>
+    [RelayCommand]
+    private void CopyIndexSql(IndexRecommendation recommendation)
+    {
+        if (recommendation == null) return;
+
+        try
+        {
+            System.Windows.Clipboard.SetText(recommendation.CreateIndexSql);
+            StatusMessage = $"Index SQL copied to clipboard: {recommendation.CreateIndexSql.Substring(0, Math.Min(50, recommendation.CreateIndexSql.Length))}...";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error copying to clipboard: {ex.Message}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 }
