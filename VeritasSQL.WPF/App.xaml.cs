@@ -14,14 +14,38 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        // Dependency Injection Setup
-        var services = new ServiceCollection();
-        ConfigureServices(services);
-        _serviceProvider = services.BuildServiceProvider();
+        // Global exception handler for unhandled exceptions
+        AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
+        {
+            var ex = args.ExceptionObject as Exception;
+            MessageBox.Show($"Unhandled Exception: {ex?.Message}\n\nStack Trace:\n{ex?.StackTrace}",
+                "Fatal Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        };
 
-        // Hauptfenster anzeigen
-        var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
-        mainWindow.Show();
+        this.DispatcherUnhandledException += (sender, args) =>
+        {
+            MessageBox.Show($"UI Thread Exception: {args.Exception.Message}\n\nStack Trace:\n{args.Exception.StackTrace}",
+                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            args.Handled = true;
+        };
+
+        try
+        {
+            // Dependency Injection Setup
+            var services = new ServiceCollection();
+            ConfigureServices(services);
+            _serviceProvider = services.BuildServiceProvider();
+
+            // Hauptfenster anzeigen
+            var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
+            mainWindow.Show();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Startup Error: {ex.Message}\n\nInner Exception: {ex.InnerException?.Message}\n\nStack Trace:\n{ex.StackTrace}",
+                "Startup Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(1);
+        }
     }
 
     private void ConfigureServices(IServiceCollection services)
@@ -35,12 +59,12 @@ public partial class App : Application
         services.AddSingleton<AuditLogger>();
         services.AddSingleton<DomainDictionaryService>();
 
-        // OpenAI Service wird lazy erstellt (API Key aus Settings)
-        services.AddTransient<OpenAIService>(sp =>
+        // OpenAI Service - create with empty key initially, will be configured later
+        services.AddSingleton<OpenAIService>(sp =>
         {
-            var settingsService = sp.GetRequiredService<SettingsService>();
-            var settings = settingsService.GetSettingsAsync().Result;
-            return new OpenAIService(settings.GetOpenAIApiKey(), settings.OpenAIModel);
+            // Start with empty API key to avoid blocking on startup
+            // Using gpt-4o - the latest and most capable model
+            return new OpenAIService("", "gpt-4o");
         });
 
         // Export Services

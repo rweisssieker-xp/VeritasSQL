@@ -12,7 +12,7 @@ public class AppSettings
     public string Language { get; set; } = "en-US";
     public bool DryRunByDefault { get; set; } = true;
     public bool ShowExplanations { get; set; } = true;
-    public string OpenAIModel { get; set; } = "gpt-4";
+    public string OpenAIModel { get; set; } = "gpt-5-nano";
     
     public string? GetOpenAIApiKey()
     {

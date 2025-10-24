@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Format-List -Property TimeGenerated,Message)",
+      "Bash(dotnet build:*)",
+      "Bash(taskkill:*)",
+      "Bash(Get-Process -Name VeritasSQL.WPF -ErrorAction SilentlyContinue)",
+      "Bash(Stop-Process -Force)",
+      "Bash(powershell -Command \"Get-Process -Name VeritasSQL.WPF -ErrorAction SilentlyContinue | Stop-Process -Force\")",
+      "Bash(dotnet clean:*)",
+      "Bash(dotnet run:*)",
+      "Bash(powershell -Command \"Get-Process -Name VeritasSQL.WPF -ErrorAction SilentlyContinue | Select-Object Id, ProcessName, StartTime | Format-Table -AutoSize\")",
+      "Bash(powershell -Command \"Get-EventLog -LogName Application -Source ''Application Error'' -Newest 5 2>&1 | Format-List -Property TimeGenerated,Message\")",
+      "Bash(powershell -Command:*)",
+      "Bash(start \"\" \"C:\\tmp\\VeritasSQL\\VeritasSQL.WPF\\bin\\Debug\\net8.0-windows\\VeritasSQL.WPF.exe\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

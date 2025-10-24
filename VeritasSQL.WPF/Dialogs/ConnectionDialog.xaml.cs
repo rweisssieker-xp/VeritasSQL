@@ -46,10 +46,15 @@ public partial class ConnectionDialog : Window
 
     private void AuthTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (AuthTypeComboBox.SelectedItem is ComboBoxItem item)
+        // Check if controls are initialized to avoid NullReferenceException during window load
+        if (AuthTypeComboBox?.SelectedItem is ComboBoxItem item &&
+            UsernameLabel != null &&
+            UsernameTextBox != null &&
+            PasswordLabel != null &&
+            PasswordBox != null)
         {
             var isSqlAuth = item.Tag?.ToString() == "SqlServer";
-            
+
             UsernameLabel.Visibility = isSqlAuth ? Visibility.Visible : Visibility.Collapsed;
             UsernameTextBox.Visibility = isSqlAuth ? Visibility.Visible : Visibility.Collapsed;
             PasswordLabel.Visibility = isSqlAuth ? Visibility.Visible : Visibility.Collapsed;

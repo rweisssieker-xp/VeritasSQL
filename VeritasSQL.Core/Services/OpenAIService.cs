@@ -11,10 +11,19 @@ namespace VeritasSQL.Core.Services;
 /// </summary>
 public class OpenAIService
 {
-    private readonly string? _apiKey;
-    private readonly string _model;
+    private string? _apiKey;
+    private string _model;
 
-    public OpenAIService(string? apiKey, string model = "gpt-4")
+    public OpenAIService(string? apiKey = null, string model = "gpt-4o")
+    {
+        _apiKey = apiKey;
+        _model = model;
+    }
+
+    /// <summary>
+    /// Updates the API key and model (useful for late initialization)
+    /// </summary>
+    public void Configure(string apiKey, string model = "gpt-4o")
     {
         _apiKey = apiKey;
         _model = model;
@@ -694,7 +703,7 @@ Respond in JSON format:
         // Limit to recent 100 entries for token management
         var recentHistory = historyEntries.Take(100).ToList();
         var historyText = string.Join("\n", recentHistory.Select((e, i) =>
-            $"{i}: {e.NaturalLanguageQuery} | SQL: {e.GeneratedSql?.Substring(0, Math.Min(100, e.GeneratedSql.Length ?? 0))}"));
+            $"{i}: {e.NaturalLanguageQuery} | SQL: {(e.GeneratedSql != null ? e.GeneratedSql.Substring(0, Math.Min(100, e.GeneratedSql.Length)) : "")}"));
 
         var systemPrompt = @"You are a semantic search expert. Find queries that match the user's intent, even if worded differently.
 Consider:
@@ -774,7 +783,7 @@ Respond in JSON format:
   ""alternativeRecommendations"": [
     {
       ""chartType"": ""..."",
-      ""reason"": ""...""",
+      ""reason"": ""..."",
       ""useCase"": ""When to use this instead""
     }
   ],
@@ -839,7 +848,7 @@ Recent queries for context:
 {recentContext}
 
 Available schema:
-{SerializeSchemaInfo(schema)}
+{SerializeSchema(schema)}
 
 Return JSON array with 3 suggestions:
 {{
@@ -908,7 +917,7 @@ Focus on: common patterns, corrections, enhancements.";
         var prompt = $@"You are an AI data analyst. Based on the user's last query and results, predict what they might want to query next.
 
 Last query: ""{lastQuery.NaturalLanguageQuery}""
-Last SQL: {lastQuery.Sql}
+Last SQL: {lastQuery.GeneratedSql}
 
 Last result sample:
 {resultSample}
@@ -917,7 +926,7 @@ Recent history:
 {historyContext}
 
 Available schema:
-{SerializeSchemaInfo(schema)}
+{SerializeSchema(schema)}
 
 Return JSON with 5 predictive suggestions:
 {{
@@ -985,7 +994,7 @@ Source table: {sourceTable}
 Target table: {targetTable}
 
 Available schema with relationships:
-{SerializeSchemaInfo(schema)}
+{SerializeSchema(schema)}
 
 Return JSON with the optimal path:
 {{
@@ -1059,7 +1068,7 @@ Sample data:
 {dataSample}
 
 Schema info:
-{SerializeSchemaInfo(schema)}
+{SerializeSchema(schema)}
 
 Return comprehensive JSON:
 {{
@@ -1148,7 +1157,7 @@ Check for: emails, phones, SSNs, credit cards, addresses, names, IP addresses.";
         var systemPrompt = $@"You are a conversational SQL assistant. Maintain context across the conversation.
 
 Available schema:
-{SerializeSchemaInfo(schema)}
+{SerializeSchema(schema)}
 
 Conversation history:
 {conversationHistory}
@@ -1229,7 +1238,7 @@ Guidelines:
         var prompt = $@"You are a BI dashboard expert. Create an automated dashboard for: ""{topic}""
 
 Available schema:
-{SerializeSchemaInfo(schema)}
+{SerializeSchema(schema)}
 
 Recent user queries for context:
 {queryContext}
@@ -1324,7 +1333,7 @@ Sample data:
 {dataSample}
 
 Schema:
-{SerializeSchemaInfo(schema)}
+{SerializeSchema(schema)}
 
 Analyze 5 dimensions:
 1. Completeness (missing values)
@@ -1408,14 +1417,14 @@ Be thorough and actionable. Grades: A+ (95-100), A (90-94), B (80-89), C (70-79)
         var client = new ChatClient(_model, _apiKey);
 
         var queryPatterns = string.Join("\n", historicalQueries.Take(20).Select(q =>
-            $"- {q.NaturalLanguageQuery}\n  SQL: {q.Sql}"));
+            $"- {q.NaturalLanguageQuery}\n  SQL: {q.GeneratedSql}"));
 
         var prompt = $@"You are a database impact analysis expert. Analyze the business impact of this schema change.
 
 Proposed change: {changeDescription}
 
 Current schema:
-{SerializeSchemaInfo(schema)}
+{SerializeSchema(schema)}
 
 Historical query patterns:
 {queryPatterns}
@@ -1626,7 +1635,7 @@ SQL Query:
 {sql}
 
 Schema:
-{SerializeSchemaInfo(schema)}
+{SerializeSchema(schema)}
 
 Cloud Provider: {cloudProvider}
 
@@ -1933,6 +1942,409 @@ Write in engaging, narrative style. Use concrete numbers. Make it memorable.";
         catch (Exception ex)
         {
             throw new InvalidOperationException($"Error generating data story: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Feature #25: AI Auto-Scheduler - Detects recurring query patterns
+    /// </summary>
+    public async Task<List<AutoSchedulerRecommendation>> DetectRecurringPatternsAsync(
+        List<QueryHistoryEntry> historyEntries,
+        int minOccurrences = 3)
+    {
+        if (string.IsNullOrEmpty(_apiKey))
+        {
+            throw new InvalidOperationException("OpenAI API Key is not configured");
+        }
+
+        var client = new ChatClient(_model, _apiKey);
+
+        // Group queries by similarity
+        var queryPatterns = string.Join("\n", historyEntries.Take(100).Select((e, i) =>
+            $"{i+1}. [{e.ExecutedAt:yyyy-MM-dd HH:mm}] {e.NaturalLanguageQuery}"));
+
+        var prompt = $@"You are an automation expert. Analyze these query execution patterns and identify recurring queries that should be automated.
+
+Query History:
+{queryPatterns}
+
+Identify queries that:
+1. Are executed repeatedly (at least {minOccurrences} times)
+2. Follow a time pattern (daily, weekly, monthly, specific days/times)
+3. Would benefit from automation
+
+For each recurring pattern, provide:
+- Pattern description
+- Natural language query text (generalized)
+- Recurrence pattern in human language
+- Suggested cron schedule
+- Confidence score (0.0-1.0)
+- Reasoning
+- Estimated time savings
+
+Return JSON array:
+[{{
+  ""queryPattern"": ""Weekly sales report"",
+  ""naturalLanguageQuery"": ""Show total sales for last week"",
+  ""recurrencePattern"": ""Every Monday at 9:00 AM"",
+  ""suggestedSchedule"": ""0 9 * * 1"",
+  ""confidence"": 0.95,
+  ""reasoning"": ""Executed every Monday morning for past 8 weeks"",
+  ""occurrenceCount"": 8,
+  ""estimatedTimeSaving"": ""2 hours per week"",
+  ""priority"": ""High""
+}}]";
+
+        var messages = new List<ChatMessage>
+        {
+            new SystemChatMessage("You are an AI automation expert specializing in workflow optimization."),
+            new UserChatMessage(prompt)
+        };
+
+        try
+        {
+            var response = await client.CompleteChatAsync(messages);
+            var content = response.Value.Content[0].Text;
+
+            var jsonMatch = System.Text.RegularExpressions.Regex.Match(
+                content,
+                @"\[[\s\S]*\]",
+                System.Text.RegularExpressions.RegexOptions.Multiline);
+
+            if (jsonMatch.Success)
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var recommendations = JsonSerializer.Deserialize<List<AutoSchedulerRecommendation>>(jsonMatch.Value, options);
+                return recommendations ?? new List<AutoSchedulerRecommendation>();
+            }
+
+            return new List<AutoSchedulerRecommendation>();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Error detecting recurring patterns: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Feature #30: AI What-If Simulator - Runs scenario simulation
+    /// </summary>
+    public async Task<SimulationResult> RunSimulationAsync(
+        SimulationScenario scenario,
+        System.Data.DataTable baselineData,
+        SchemaInfo schema)
+    {
+        if (string.IsNullOrEmpty(_apiKey))
+        {
+            throw new InvalidOperationException("OpenAI API Key is not configured");
+        }
+
+        var client = new ChatClient(_model, _apiKey);
+
+        var sampleData = SerializeDataTableSample(baselineData, 20);
+        var paramChanges = string.Join("\n", scenario.Parameters.Select(p =>
+            $"- {p.Name}: {p.BaseValue} → {p.SimulatedValue} ({p.ChangeDescription})"));
+
+        var prompt = $@"You are a business analyst expert. Simulate the impact of these changes on the data.
+
+Base Query: {scenario.BaseQuery}
+
+Current Data Sample:
+{sampleData}
+
+Proposed Changes:
+{paramChanges}
+
+Analyze:
+1. How will each KPI change?
+2. What is the business impact?
+3. What are the key findings?
+4. What is the overall impact score (0-100)?
+5. What is the risk level?
+
+Return JSON:
+{{
+  ""summary"": ""Overall impact summary"",
+  ""businessImpact"": ""Business implications"",
+  ""keyFindings"": [""Finding 1"", ""Finding 2""],
+  ""overallImpactScore"": 75,
+  ""impactLevel"": ""High"",
+  ""kpiComparisons"": [
+    {{
+      ""kpiName"": ""Total Revenue"",
+      ""baselineValue"": ""$1M"",
+      ""simulatedValue"": ""$1.1M"",
+      ""changePercentage"": 10.0,
+      ""changeDescription"": ""Increase of $100K"",
+      ""trend"": ""Up"",
+      ""interpretation"": ""Positive impact""
+    }}
+  ]
+}}";
+
+        var messages = new List<ChatMessage>
+        {
+            new SystemChatMessage("You are an AI business analyst specializing in scenario planning."),
+            new UserChatMessage(prompt)
+        };
+
+        try
+        {
+            var response = await client.CompleteChatAsync(messages);
+            var content = response.Value.Content[0].Text;
+
+            var jsonMatch = System.Text.RegularExpressions.Regex.Match(
+                content,
+                @"\{[\s\S]*\}",
+                System.Text.RegularExpressions.RegexOptions.Multiline);
+
+            if (jsonMatch.Success)
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var result = JsonSerializer.Deserialize<SimulationResult>(jsonMatch.Value, options);
+                if (result != null)
+                {
+                    result.ScenarioId = scenario.Id;
+                    result.ScenarioName = scenario.Name;
+                    result.BaselineData = baselineData;
+                    return result;
+                }
+            }
+
+            return new SimulationResult();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Error running simulation: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Feature #32: AI Root Cause Analyzer - Analyzes anomalies and finds root causes
+    /// </summary>
+    public async Task<RootCauseAnalysis> AnalyzeRootCauseAsync(
+        string query,
+        System.Data.DataTable data,
+        string anomalyDescription,
+        SchemaInfo schema)
+    {
+        if (string.IsNullOrEmpty(_apiKey))
+        {
+            throw new InvalidOperationException("OpenAI API Key is not configured");
+        }
+
+        var client = new ChatClient(_model, _apiKey);
+
+        var sampleData = SerializeDataTableSample(data, 50);
+        var schemaInfo = SerializeSchema(schema);
+
+        var prompt = $@"You are a data detective specializing in root cause analysis. Find the root cause of this anomaly.
+
+Query: {query}
+
+Anomaly: {anomalyDescription}
+
+Data Sample:
+{sampleData}
+
+Schema:
+{schemaInfo}
+
+Perform multi-dimensional analysis:
+1. What is the PRIMARY root cause?
+2. What are contributing factors (with impact scores 0-100)?
+3. Which dimensions are affected (time, geography, product, etc.)?
+4. What drill-down queries would help investigate further?
+5. What is the executive summary?
+
+Return JSON:
+{{
+  ""primaryRootCause"": ""Main cause explanation"",
+  ""executiveSummary"": ""2-3 sentence summary for executives"",
+  ""confidenceScore"": 0.85,
+  ""keyFindings"": [""Finding 1"", ""Finding 2""],
+  ""actionPlan"": ""Recommended actions"",
+  ""contributingFactors"": [
+    {{
+      ""name"": ""Factor name"",
+      ""description"": ""Detailed explanation"",
+      ""impactScore"": 85,
+      ""impact"": ""High"",
+      ""evidence"": ""Supporting data"",
+      ""affectedDimensions"": [""Time"", ""Geography""],
+      ""recommendation"": ""Suggested action""
+    }}
+  ],
+  ""recommendedDrillDowns"": [
+    {{
+      ""title"": ""Analyze by Region"",
+      ""description"": ""Break down by geographic region"",
+      ""naturalLanguageQuery"": ""Show the same data grouped by region"",
+      ""dimension"": ""Geography"",
+      ""relevanceScore"": 0.9,
+      ""expectedInsight"": ""Identify which regions are affected""
+    }}
+  ]
+}}";
+
+        var messages = new List<ChatMessage>
+        {
+            new SystemChatMessage("You are an AI data detective specializing in root cause analysis."),
+            new UserChatMessage(prompt)
+        };
+
+        try
+        {
+            var response = await client.CompleteChatAsync(messages);
+            var content = response.Value.Content[0].Text;
+
+            var jsonMatch = System.Text.RegularExpressions.Regex.Match(
+                content,
+                @"\{[\s\S]*\}",
+                System.Text.RegularExpressions.RegexOptions.Multiline);
+
+            if (jsonMatch.Success)
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var result = JsonSerializer.Deserialize<RootCauseAnalysis>(jsonMatch.Value, options);
+                if (result != null)
+                {
+                    result.Query = query;
+                    result.AnomalyDescription = anomalyDescription;
+                    return result;
+                }
+            }
+
+            return new RootCauseAnalysis();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Error analyzing root cause: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Feature #40: AI Compliance Copilot - Checks query for regulatory compliance
+    /// </summary>
+    public async Task<ComplianceReport> CheckComplianceAsync(
+        string query,
+        SchemaInfo schema,
+        List<ComplianceFramework> frameworks)
+    {
+        if (string.IsNullOrEmpty(_apiKey))
+        {
+            throw new InvalidOperationException("OpenAI API Key is not configured");
+        }
+
+        var client = new ChatClient(_model, _apiKey);
+
+        var schemaInfo = SerializeSchema(schema);
+        var frameworkList = string.Join(", ", frameworks.Select(f => f.ToString()));
+
+        var prompt = $@"You are a compliance expert specializing in data protection regulations. Analyze this query for compliance violations.
+
+Query: {query}
+
+Schema:
+{schemaInfo}
+
+Regulations to check: {frameworkList}
+
+Analyze:
+1. Does this query access PII/sensitive data?
+2. Are there GDPR/SOX/HIPAA violations?
+3. What is the overall risk score (0-100)?
+4. What actions are required for compliance?
+5. Does this require approval, and at what level?
+
+Return JSON:
+{{
+  ""overallRiskScore"": 75,
+  ""status"": ""PartiallyCompliant"",
+  ""executiveSummary"": ""Query accesses customer data without proper safeguards"",
+  ""requiresApproval"": true,
+  ""approvalLevel"": ""Director"",
+  ""regulations"": [
+    {{
+      ""regulationName"": ""GDPR"",
+      ""article"": ""Art. 32"",
+      ""description"": ""Security of processing"",
+      ""isCompliant"": false,
+      ""status"": ""violation"",
+      ""requirements"": [""Encryption"", ""Access control""],
+      ""findings"": [""Personal data accessed without encryption""],
+      ""recommendation"": ""Implement column-level encryption""
+    }}
+  ],
+  ""violations"": [
+    {{
+      ""violationType"": ""Unencrypted PII Access"",
+      ""regulation"": ""GDPR Art. 32"",
+      ""description"": ""Query accesses email addresses without encryption"",
+      ""severity"": ""High"",
+      ""affectedData"": ""Email, Phone"",
+      ""affectedColumns"": [""Customers.Email"", ""Customers.Phone""],
+      ""potentialImpact"": ""GDPR fine up to 4% of revenue"",
+      ""requiredAction"": ""Add encryption or mask data"",
+      ""penaltyRisk"": 50000
+    }}
+  ],
+  ""warnings"": [
+    {{
+      ""warningType"": ""Broad data access"",
+      ""description"": ""Query retrieves more columns than necessary"",
+      ""recommendation"": ""Use specific column names instead of SELECT *"",
+      ""preventionTip"": ""Principle of data minimization""
+    }}
+  ],
+  ""remediation"": {{
+    ""priority"": ""High"",
+    ""estimatedEffort"": 2,
+    ""steps"": [
+      {{
+        ""order"": 1,
+        ""action"": ""Add WHERE clause to limit data"",
+        ""description"": ""Restrict to necessary records only"",
+        ""sqlFix"": ""WHERE created_date > DATEADD(month, -1, GETDATE())"",
+        ""estimatedMinutes"": 30,
+        ""requiresApproval"": false
+      }}
+    ]
+  }}
+}}";
+
+        var messages = new List<ChatMessage>
+        {
+            new SystemChatMessage("You are an AI compliance expert specializing in GDPR, SOX, HIPAA, and data protection."),
+            new UserChatMessage(prompt)
+        };
+
+        try
+        {
+            var response = await client.CompleteChatAsync(messages);
+            var content = response.Value.Content[0].Text;
+
+            var jsonMatch = System.Text.RegularExpressions.Regex.Match(
+                content,
+                @"\{[\s\S]*\}",
+                System.Text.RegularExpressions.RegexOptions.Multiline);
+
+            if (jsonMatch.Success)
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var result = JsonSerializer.Deserialize<ComplianceReport>(jsonMatch.Value, options);
+                if (result != null)
+                {
+                    result.Query = query;
+                    return result;
+                }
+            }
+
+            return new ComplianceReport();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Error checking compliance: {ex.Message}", ex);
         }
     }
 }

@@ -36,22 +36,37 @@
                     <ColumnDefinition Width="300"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <TextBlock Grid.Column="0" Text="Connection:" VerticalAlignment="Center" Margin="5"/>
-                <ComboBox Grid.Column="1" 
+                <ComboBox Grid.Column="1"
                           ItemsSource="{Binding ConnectionProfiles}"
                           SelectedItem="{Binding SelectedConnectionProfile}"
                           DisplayMemberPath="Name"
                           IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
-                <Button Grid.Column="2" Content="Connect" Command="{Binding ConnectCommand}"
+                <Button Grid.Column="2" Content="New" Command="{Binding NewConnectionCommand}"
+                        Margin="5,0"
+                        ToolTip="Create a new connection profile"/>
+                <Button Grid.Column="3" Content="Edit" Command="{Binding EditConnectionCommand}"
+                        Margin="5,0"
+                        ToolTip="Edit the selected connection profile"/>
+                <Button Grid.Column="4" Content="Connect" Command="{Binding ConnectCommand}"
+                        Margin="5,0"
                         ToolTip="Connect to the selected database"/>
-                <Button Grid.Column="3" Content="Load Schema" Command="{Binding LoadSchemaCommand}" 
+                <Button Grid.Column="5" Content="Load Schema" Command="{Binding LoadSchemaCommand}"
                         IsEnabled="{Binding IsConnected}"
+                        Margin="5,0"
                         ToolTip="Load database schema (tables, views, columns)"/>
+                <Button Grid.Column="7" Content="⚙️ Settings" Command="{Binding OpenSettingsCommand}"
+                        Margin="5,0"
+                        HorizontalAlignment="Right"
+                        ToolTip="Application Settings (OpenAI API Key, etc.)"/>
 
-                <StackPanel Grid.Column="4" Orientation="Horizontal" HorizontalAlignment="Right">
+                <StackPanel Grid.Column="6" Orientation="Horizontal" HorizontalAlignment="Center">
                     <TextBlock Text="Status:" VerticalAlignment="Center" Margin="5"/>
                     <Ellipse Width="10" Height="10" Margin="5" VerticalAlignment="Center">
                         <Ellipse.Fill>

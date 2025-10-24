@@ -1,5 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Data;
+using System.IO;
+using System.Linq;
+using System.Text;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -34,9 +37,14 @@ public partial class MainViewModel : ObservableObject
     private bool _isConnected;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(GenerateSqlCommand))]
     private SchemaInfo? _currentSchema;
 
     [ObservableProperty]
+    private TableInfo? _selectedTable;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(GenerateSqlCommand))]
     private string _naturalLanguageQuery = string.Empty;
 
     [ObservableProperty]
@@ -207,6 +215,14 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
+            // Load settings and configure OpenAI service
+            var settings = await _settingsService.GetSettingsAsync();
+            var apiKey = settings.GetOpenAIApiKey();
+            if (!string.IsNullOrEmpty(apiKey))
+            {
+                _openAIService.Configure(apiKey, settings.OpenAIModel);
+            }
+
             var profiles = await _connectionManager.GetProfilesAsync();
             ConnectionProfiles = new ObservableCollection<ConnectionProfile>(profiles);
 
@@ -282,6 +298,85 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task NewConnectionAsync()
+    {
+        var dialog = new Dialogs.ConnectionDialog(_connectionManager);
+        if (dialog.ShowDialog() == true && dialog.Profile != null)
+        {
+            try
+            {
+                await _connectionManager.SaveProfileAsync(dialog.Profile);
+
+                // Refresh the profiles list
+                var profiles = await _connectionManager.GetProfilesAsync();
+                ConnectionProfiles = new ObservableCollection<ConnectionProfile>(profiles);
+
+                // Select the newly created profile
+                SelectedConnectionProfile = ConnectionProfiles.FirstOrDefault(p => p.Id == dialog.Profile.Id);
+
+                StatusMessage = $"Connection profile '{dialog.Profile.Name}' created successfully";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error saving connection profile: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+    }
+
+    [RelayCommand]
+    private async Task EditConnectionAsync()
+    {
+        if (SelectedConnectionProfile == null)
+        {
+            MessageBox.Show("Please select a connection profile to edit.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var dialog = new Dialogs.ConnectionDialog(_connectionManager, SelectedConnectionProfile);
+        if (dialog.ShowDialog() == true && dialog.Profile != null)
+        {
+            try
+            {
+                await _connectionManager.SaveProfileAsync(dialog.Profile);
+
+                // Refresh the profiles list
+                var profiles = await _connectionManager.GetProfilesAsync();
+                ConnectionProfiles = new ObservableCollection<ConnectionProfile>(profiles);
+
+                // Reselect the edited profile
+                SelectedConnectionProfile = ConnectionProfiles.FirstOrDefault(p => p.Id == dialog.Profile.Id);
+
+                StatusMessage = $"Connection profile '{dialog.Profile.Name}' updated successfully";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error updating connection profile: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+    }
+
+    [RelayCommand]
+    private async Task OpenSettingsAsync()
+    {
+        try
+        {
+            var currentSettings = await _settingsService.GetSettingsAsync();
+            var dialog = new Dialogs.SettingsDialog(_settingsService, currentSettings);
+
+            if (dialog.ShowDialog() == true)
+            {
+                StatusMessage = "Settings saved successfully";
+                MessageBox.Show("Settings have been saved. Please restart the application if you changed the OpenAI API Key.",
+                    "Settings Saved", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error opening settings: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    [RelayCommand]
     private async Task LoadSchemaAsync()
     {
         if (!IsConnected || SelectedConnectionProfile == null)
@@ -311,8 +406,17 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanGenerateSql))]
     private async Task GenerateSqlAsync()
     {
-        if (string.IsNullOrWhiteSpace(NaturalLanguageQuery) || CurrentSchema == null)
+        if (string.IsNullOrWhiteSpace(NaturalLanguageQuery))
+        {
+            MessageBox.Show("Please enter a natural language query.", "Input Required", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
+        }
+
+        if (CurrentSchema == null)
+        {
+            MessageBox.Show("Please load the database schema first by clicking 'Load Schema'.", "Schema Required", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
 
         IsBusy = true;
         StatusMessage = "Generating SQL...";
@@ -354,7 +458,15 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error generating SQL: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            var errorDetails = ex.InnerException != null
+                ? $"{ex.Message}\n\nDetails: {ex.InnerException.Message}"
+                : ex.Message;
+
+            MessageBox.Show(
+                $"Error generating SQL:\n\n{errorDetails}\n\nPlease check:\n• OpenAI API Key is configured in Settings\n• Internet connection is available\n• Schema is loaded",
+                "SQL Generation Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
             StatusMessage = "SQL generation failed";
 
             await _auditLogger.LogAsync(new AuditEntry
@@ -372,7 +484,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private bool CanGenerateSql() => !IsBusy && IsConnected && !string.IsNullOrWhiteSpace(NaturalLanguageQuery);
+    private bool CanGenerateSql() => !IsBusy && CurrentSchema != null && !string.IsNullOrWhiteSpace(NaturalLanguageQuery);
 
     [RelayCommand(CanExecute = nameof(CanExecuteQuery))]
     private async Task ExecuteQueryAsync()
@@ -1325,7 +1437,7 @@ public partial class MainViewModel : ObservableObject
         try
         {
             var profiling = await _openAIService.ProfileDataAsync(
-                SelectedTable.TableName,
+                SelectedTable.Name,
                 QueryResults,
                 _currentSchema);
 
@@ -1463,7 +1575,7 @@ public partial class MainViewModel : ObservableObject
         try
         {
             var score = await _openAIService.CalculateDataQualityScoreAsync(
-                SelectedTable.TableName,
+                SelectedTable.Name,
                 QueryResults,
                 _currentSchema);
 
