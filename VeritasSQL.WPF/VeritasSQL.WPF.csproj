@@ -16,6 +16,13 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.0.0</Version>
+    <Product>VeritasSQL</Product>
+    <Company>VeritasSQL</Company>
+    <Copyright>Copyright © 2024</Copyright>
+    <Description>Natural Language to SQL with AI-powered insights</Description>
   </PropertyGroup>
 
 </Project>

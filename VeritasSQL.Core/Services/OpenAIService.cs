@@ -131,14 +131,19 @@ public class OpenAIService
         var sb = new StringBuilder();
 
         sb.AppendLine("You are an SQL expert for Microsoft SQL Server.");
-        sb.AppendLine("Generate only SELECT statements. No DML (INSERT, UPDATE, DELETE) or DDL (CREATE, DROP, ALTER).");
-        sb.AppendLine("Rules:");
-        sb.AppendLine("1. Use fully qualified object names (Schema.Table)");
-        sb.AppendLine("2. Always add TOP N (default: TOP 100)");
-        sb.AppendLine("3. Only use tables/views from the provided schema");
-        sb.AppendLine("4. Use parameterized queries for filters");
+        sb.AppendLine("Generate ONLY valid SELECT statements. No DML (INSERT, UPDATE, DELETE) or DDL (CREATE, DROP, ALTER).");
+        sb.AppendLine();
+        sb.AppendLine("CRITICAL RULES:");
+        sb.AppendLine("1. Use fully qualified table names (Schema.Table)");
+        sb.AppendLine("2. Always add TOP 100 to prevent large result sets");
+        sb.AppendLine("3. Only use tables/views that exist in the provided schema");
+        sb.AppendLine("4. Use proper SQL Server syntax");
         sb.AppendLine("5. No multiple statements (no semicolons)");
         sb.AppendLine("6. No dangerous functions (EXEC, xp_cmdshell, etc.)");
+        sb.AppendLine("7. Use proper JOIN syntax");
+        sb.AppendLine("8. Use proper WHERE clause syntax");
+        sb.AppendLine("9. Use proper ORDER BY syntax");
+        sb.AppendLine("10. Ensure all column names exist in the referenced tables");
         sb.AppendLine();
         sb.AppendLine("Database Schema:");
         sb.AppendLine(SerializeSchema(schema));
@@ -154,12 +159,20 @@ public class OpenAIService
         }
 
         sb.AppendLine();
-        sb.AppendLine("Respond in the following JSON format:");
+        sb.AppendLine("IMPORTANT: Respond ONLY in the following JSON format (no additional text):");
         sb.AppendLine("{");
-        sb.AppendLine("  \"sql\": \"SELECT ...\",");
-        sb.AppendLine("  \"explanation\": \"Explanation in English\",");
+        sb.AppendLine("  \"sql\": \"SELECT TOP 100 Schema.Table.Column1, Schema.Table.Column2 FROM Schema.Table WHERE condition\",");
+        sb.AppendLine("  \"explanation\": \"This query finds...\",");
         sb.AppendLine("  \"tables_used\": [\"Schema.Table1\", \"Schema.Table2\"],");
-        sb.AppendLine("  \"estimated_cost\": \"low|medium|high\"");
+        sb.AppendLine("  \"estimated_cost\": \"low\"");
+        sb.AppendLine("}");
+        sb.AppendLine();
+        sb.AppendLine("EXAMPLE for 'show me all customers':");
+        sb.AppendLine("{");
+        sb.AppendLine("  \"sql\": \"SELECT TOP 100 dbo.Customer.CustomerID, dbo.Customer.CustomerName, dbo.Customer.Email FROM dbo.Customer\",");
+        sb.AppendLine("  \"explanation\": \"This query retrieves all customer information including ID, name, and email address.\",");
+        sb.AppendLine("  \"tables_used\": [\"dbo.Customer\"],");
+        sb.AppendLine("  \"estimated_cost\": \"low\"");
         sb.AppendLine("}");
 
         return sb.ToString();

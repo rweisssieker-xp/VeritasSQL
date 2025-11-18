@@ -34,13 +34,15 @@ public partial class MainViewModel : ObservableObject
     private ConnectionProfile? _selectedConnectionProfile;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(GenerateQuerySuggestionsCommand), nameof(GenerateSmartFiltersCommand), nameof(ExecuteQueryCommand))]
     private bool _isConnected;
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(GenerateSqlCommand))]
+    [NotifyCanExecuteChangedFor(nameof(GenerateSqlCommand), nameof(ExplainSchemaCommand), nameof(GenerateQuerySuggestionsCommand), nameof(OptimizeQueryCommand), nameof(GenerateSmartFiltersCommand))]
     private SchemaInfo? _currentSchema;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ProfileDataCommand), nameof(CalculateQualityScoreCommand))]
     private TableInfo? _selectedTable;
 
     [ObservableProperty]
@@ -48,6 +50,7 @@ public partial class MainViewModel : ObservableObject
     private string _naturalLanguageQuery = string.Empty;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ExecuteQueryCommand), nameof(ExplainSqlCommand), nameof(OptimizeQueryCommand), nameof(EstimateQueryCostCommand))]
     private string _generatedSql = string.Empty;
 
     [ObservableProperty]
@@ -57,6 +60,9 @@ public partial class MainViewModel : ObservableObject
     private ValidationResult? _validationResult;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(AnalyzeDataInsightsCommand), nameof(SummarizeResultsCommand), 
+        nameof(DetectAnomaliesCommand), nameof(RecommendVisualizationsCommand), nameof(ProfileDataCommand),
+        nameof(CalculateQualityScoreCommand), nameof(FindCorrelationsCommand), nameof(GenerateDataStoryCommand))]
     private DataTable? _queryResults;
 
     [ObservableProperty]
@@ -69,6 +75,7 @@ public partial class MainViewModel : ObservableObject
     private string _StatusMessage = "Ready";
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(GenerateSqlCommand), nameof(ExecuteQueryCommand), nameof(ExplainSqlCommand), nameof(OptimizeQueryCommand), nameof(EstimateQueryCostCommand), nameof(AnalyzeDataInsightsCommand), nameof(SummarizeResultsCommand), nameof(DetectAnomaliesCommand), nameof(RecommendVisualizationsCommand), nameof(ProfileDataCommand), nameof(CalculateQualityScoreCommand), nameof(FindCorrelationsCommand), nameof(GenerateDataStoryCommand))]
     private bool _isBusy;
 
     [ObservableProperty]
@@ -188,6 +195,12 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isRecording = false;
 
+    [ObservableProperty]
+    private string _appVersion = string.Empty;
+
+    [ObservableProperty]
+    private string _buildDate = string.Empty;
+
     public MainViewModel(
         ConnectionManager connectionManager,
         SettingsService settingsService,
@@ -206,6 +219,10 @@ public partial class MainViewModel : ObservableObject
         _historyService = historyService;
         _auditLogger = auditLogger;
         _dictionaryService = dictionaryService;
+
+        // Initialize version and build date
+        AppVersion = GetAppVersion();
+        BuildDate = GetBuildDate();
 
         // Initialization
         _ = InitializeAsync();
@@ -365,9 +382,23 @@ public partial class MainViewModel : ObservableObject
 
             if (dialog.ShowDialog() == true)
             {
-                StatusMessage = "Settings saved successfully";
-                MessageBox.Show("Settings have been saved. Please restart the application if you changed the OpenAI API Key.",
-                    "Settings Saved", MessageBoxButton.OK, MessageBoxImage.Information);
+                // Reload settings and reconfigure OpenAI service immediately
+                var updatedSettings = await _settingsService.GetSettingsAsync();
+                var apiKey = updatedSettings.GetOpenAIApiKey();
+
+                if (!string.IsNullOrEmpty(apiKey))
+                {
+                    _openAIService.Configure(apiKey, updatedSettings.OpenAIModel);
+                    StatusMessage = "Settings saved and applied successfully";
+                    MessageBox.Show("Settings have been saved and applied. OpenAI API Key is now active.",
+                        "Settings Saved", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    StatusMessage = "Settings saved successfully";
+                    MessageBox.Show("Settings have been saved.",
+                        "Settings Saved", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
             }
         }
         catch (Exception ex)
@@ -391,6 +422,11 @@ public partial class MainViewModel : ObservableObject
             CurrentSchema = await _schemaService.LoadSchemaAsync(connectionString);
 
             StatusMessage = $"Schema loaded: {CurrentSchema.Tables.Count} tables, {CurrentSchema.Views.Count} views";
+
+            // DEBUG: Log the state
+            System.Diagnostics.Debug.WriteLine($"LoadSchemaAsync: CurrentSchema is {(CurrentSchema == null ? "NULL" : "SET")}");
+            System.Diagnostics.Debug.WriteLine($"LoadSchemaAsync: IsBusy = {IsBusy}");
+            System.Diagnostics.Debug.WriteLine($"LoadSchemaAsync: CanExplainSchema() = {CanExplainSchema()}");
         }
         catch (Exception ex)
         {
@@ -400,6 +436,19 @@ public partial class MainViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+
+            // DEBUG: Log after IsBusy reset
+            System.Diagnostics.Debug.WriteLine($"LoadSchemaAsync (finally): IsBusy = {IsBusy}");
+            System.Diagnostics.Debug.WriteLine($"LoadSchemaAsync (finally): CanExplainSchema() = {CanExplainSchema()}");
+
+            // Explicitly notify commands to re-evaluate their CanExecute on UI thread
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                ExplainSchemaCommand.NotifyCanExecuteChanged();
+                GenerateQuerySuggestionsCommand.NotifyCanExecuteChanged();
+                OptimizeQueryCommand.NotifyCanExecuteChanged();
+                GenerateSmartFiltersCommand.NotifyCanExecuteChanged();
+            });
         }
     }
 
@@ -995,7 +1044,12 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private bool CanExplainSchema() => !IsBusy && CurrentSchema != null;
+    private bool CanExplainSchema()
+    {
+        var result = !IsBusy && CurrentSchema != null;
+        System.Diagnostics.Debug.WriteLine($"CanExplainSchema: IsBusy={IsBusy}, CurrentSchema={(CurrentSchema == null ? "NULL" : "SET")}, Result={result}");
+        return result;
+    }
 
     /// <summary>
     /// Generates smart filter suggestions based on sample data
@@ -1320,7 +1374,7 @@ public partial class MainViewModel : ObservableObject
         {
             var suggestions = await _openAIService.GetCopilotSuggestionsAsync(
                 NaturalLanguageQuery,
-                _currentSchema,
+                CurrentSchema,
                 History.ToList());
 
             CopilotSuggestions = new ObservableCollection<QueryCopilotSuggestion>(suggestions);
@@ -1351,7 +1405,7 @@ public partial class MainViewModel : ObservableObject
             var predictions = await _openAIService.PredictNextQueriesAsync(
                 lastQuery,
                 History.ToList(),
-                _currentSchema,
+                CurrentSchema,
                 QueryResults);
 
             PredictiveQueries = new ObservableCollection<PredictiveQuerySuggestion>(predictions);
@@ -1395,7 +1449,7 @@ public partial class MainViewModel : ObservableObject
             var path = await _openAIService.FindJoinPathAsync(
                 JoinSourceTable,
                 JoinTargetTable,
-                _currentSchema);
+                CurrentSchema);
 
             JoinPath = path;
             StatusMessage = $"Found path with {path.PathLength} steps";
@@ -1439,7 +1493,7 @@ public partial class MainViewModel : ObservableObject
             var profiling = await _openAIService.ProfileDataAsync(
                 SelectedTable.Name,
                 QueryResults,
-                _currentSchema);
+                CurrentSchema);
 
             DataProfilingResult = profiling;
             StatusMessage = $"Profiling complete - Risk: {profiling.OverallRisk}";
@@ -1483,7 +1537,7 @@ public partial class MainViewModel : ObservableObject
             var response = await _openAIService.ChatAsync(
                 userMessage,
                 ConversationContext,
-                _currentSchema);
+                CurrentSchema);
 
             ChatHistory = new ObservableCollection<ConversationTurn>(ConversationContext.Turns);
 
@@ -1533,7 +1587,7 @@ public partial class MainViewModel : ObservableObject
         {
             var dashboard = await _openAIService.GenerateDashboardAsync(
                 DashboardTopic,
-                _currentSchema,
+                CurrentSchema,
                 History.ToList());
 
             GeneratedDashboard = dashboard;
@@ -1577,7 +1631,7 @@ public partial class MainViewModel : ObservableObject
             var score = await _openAIService.CalculateDataQualityScoreAsync(
                 SelectedTable.Name,
                 QueryResults,
-                _currentSchema);
+                CurrentSchema);
 
             DataQualityScore = score;
             StatusMessage = $"Quality Score: {score.OverallScore:F1}/100 (Grade: {score.Grade})";
@@ -1619,7 +1673,7 @@ public partial class MainViewModel : ObservableObject
         {
             var analysis = await _openAIService.AnalyzeSchemaChangeImpactAsync(
                 SchemaChangeDescription,
-                _currentSchema,
+                CurrentSchema,
                 History.ToList());
 
             ImpactAnalysis = analysis;
@@ -1768,7 +1822,7 @@ public partial class MainViewModel : ObservableObject
         {
             var estimate = await _openAIService.EstimateQueryCostAsync(
                 GeneratedSql,
-                _currentSchema,
+                CurrentSchema,
                 CloudProvider);
 
             QueryCostEstimate = estimate;
@@ -1925,6 +1979,45 @@ public partial class MainViewModel : ObservableObject
     }
 
     private bool CanGenerateDataStory() => !IsBusy && QueryResults != null && QueryResults.Rows.Count > 0;
+
+    /// <summary>
+    /// Gets the application version from assembly
+    /// </summary>
+    private string GetAppVersion()
+    {
+        try
+        {
+            var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+            var version = assembly.GetName().Version;
+            return version != null ? $"v{version.Major}.{version.Minor}.{version.Build}" : "v1.0.0";
+        }
+        catch
+        {
+            return "v1.0.0";
+        }
+    }
+
+    /// <summary>
+    /// Gets the build date from assembly
+    /// </summary>
+    private string GetBuildDate()
+    {
+        try
+        {
+            var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+            var location = assembly.Location;
+            if (!string.IsNullOrEmpty(location) && File.Exists(location))
+            {
+                var fileInfo = new FileInfo(location);
+                return fileInfo.LastWriteTime.ToString("dd.MM.yyyy HH:mm");
+            }
+            return DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+        }
+        catch
+        {
+            return DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+        }
+    }
 
     /// <summary>
     /// Export data story as Word document

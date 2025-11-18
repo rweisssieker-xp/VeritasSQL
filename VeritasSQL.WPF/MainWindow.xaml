@@ -73,6 +73,10 @@
                             <SolidColorBrush Color="{Binding IsConnected, Converter={StaticResource BoolToColorConverter}}"/>
                         </Ellipse.Fill>
                     </Ellipse>
+                    <TextBlock Text="{Binding AppVersion}" VerticalAlignment="Center" Margin="10,0,5,0" 
+                               FontWeight="Bold" Foreground="#666"/>
+                    <TextBlock Text="{Binding BuildDate}" VerticalAlignment="Center" Margin="5,0" 
+                               FontSize="10" Foreground="#888"/>
                 </StackPanel>
             </Grid>
         </Border>
