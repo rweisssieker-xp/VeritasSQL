@@ -277,6 +277,36 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private QueryHistoryEntry? _selectedHistoryItem;
 
+    // Database First Date Feature (Tinder-inspired)
+    [ObservableProperty]
+    private DatabaseFirstDateResult? _firstDateResult;
+
+    [ObservableProperty]
+    private bool _showFirstDatePanel;
+
+    [ObservableProperty]
+    private FirstDateQuery? _selectedFirstDateQuery;
+
+    // Query Preview Feature (Netflix-inspired)
+    [ObservableProperty]
+    private DataTable? _previewResults;
+
+    [ObservableProperty]
+    private bool _showPreviewPanel;
+
+    [ObservableProperty]
+    private int _previewRowCount = 5;
+
+    // Achievements Feature (Gaming-inspired)
+    [ObservableProperty]
+    private UserAchievements _userAchievements = new();
+
+    [ObservableProperty]
+    private Achievement? _latestAchievement;
+
+    [ObservableProperty]
+    private bool _showAchievementPopup;
+
     public MainViewModel(
         ConnectionManager connectionManager,
         SettingsService settingsService,
@@ -721,6 +751,126 @@ public partial class MainViewModel : ObservableObject
     }
 
     private bool CanExecuteQuery() => !IsBusy && IsConnected && !string.IsNullOrWhiteSpace(GeneratedSql);
+
+    /// <summary>
+    /// Query Preview - See 5 rows before loading 5 million! (Netflix-inspired)
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanExecuteQuery))]
+    private async Task PreviewQueryAsync()
+    {
+        if (string.IsNullOrWhiteSpace(GeneratedSql) || SelectedConnectionProfile == null)
+            return;
+
+        IsBusy = true;
+        StatusMessage = "Loading preview (5 rows)...";
+        PreviewResults = null;
+        ShowPreviewPanel = false;
+
+        try
+        {
+            var connectionString = SelectedConnectionProfile.GetConnectionString();
+            var result = await _queryExecutor.ExecutePreviewAsync(connectionString, GeneratedSql, PreviewRowCount);
+
+            if (result.Success && result.Data != null)
+            {
+                PreviewResults = result.Data;
+                ShowPreviewPanel = true;
+                StatusMessage = $"Preview loaded: {result.RowCount} sample rows in {result.ExecutionTime.TotalMilliseconds:F0}ms";
+
+                // Show preview info
+                MessageBox.Show(
+                    $"📋 Query Preview\n\n" +
+                    $"Showing {result.RowCount} sample rows.\n" +
+                    $"Execution time: {result.ExecutionTime.TotalMilliseconds:F0}ms\n\n" +
+                    $"Click 'Execute' to run the full query.",
+                    "Preview Results",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            else
+            {
+                MessageBox.Show($"Preview failed: {result.ErrorMessage}", "Preview Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                StatusMessage = "Preview failed";
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error loading preview: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "Preview failed";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// Database First Date - 5 questions to know your new database! (Tinder-inspired)
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanGenerateFirstDate))]
+    private async Task GenerateFirstDateAsync()
+    {
+        if (CurrentSchema == null)
+            return;
+
+        IsBusy = true;
+        StatusMessage = "💕 Generating First Date queries...";
+        FirstDateResult = null;
+        ShowFirstDatePanel = false;
+
+        try
+        {
+            FirstDateResult = await _openAIService.GenerateFirstDateQueriesAsync(CurrentSchema);
+            ShowFirstDatePanel = true;
+            StatusMessage = $"💕 First Date ready! Meet \"{FirstDateResult.DatabaseNickname}\"";
+
+            // Auto-select first query
+            if (FirstDateResult.Queries.Any())
+            {
+                SelectedFirstDateQuery = FirstDateResult.Queries.First();
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error generating First Date queries: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "First Date generation failed";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private bool CanGenerateFirstDate() => !IsBusy && CurrentSchema != null;
+
+    /// <summary>
+    /// Execute a First Date query
+    /// </summary>
+    [RelayCommand]
+    private async Task ExecuteFirstDateQueryAsync(FirstDateQuery? query)
+    {
+        if (query == null || SelectedConnectionProfile == null)
+            return;
+
+        // Load the query into the main editor
+        NaturalLanguageQuery = $"{query.Emoji} {query.Title}: {query.Description}";
+        GeneratedSql = query.Sql;
+        Explanation = query.Insight;
+
+        // Execute it
+        await ExecuteQueryAsync();
+
+        StatusMessage = $"✨ First Date Query executed: {query.Title}";
+    }
+
+    /// <summary>
+    /// Dismiss the First Date panel
+    /// </summary>
+    [RelayCommand]
+    private void DismissFirstDate()
+    {
+        ShowFirstDatePanel = false;
+    }
 
     [RelayCommand]
     private async Task RefreshHistoryAsync()

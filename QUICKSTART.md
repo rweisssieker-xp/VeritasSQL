@@ -1,189 +1,168 @@
 # VeritasSQL - Quick Start Guide
 
-## 🚀 Ready in 5 Minutes
+Get up and running with VeritasSQL in 5 minutes.
 
-### Step 1: Start Project
+---
+
+## Prerequisites
+
+- Windows 10/11
+- .NET 8.0 SDK
+- SQL Server (LocalDB, Express, or full)
+- OpenAI API Key
+
+---
+
+## Step 1: Build and Run
 
 ```bash
-cd C:\tmp\VeritasSQL
+# Clone or navigate to project
+cd VeritasSQL
+
+# Restore and build
+dotnet restore
+dotnet build
+
+# Run the application
 dotnet run --project VeritasSQL.WPF
 ```
 
-The application starts and shows the main window.
+The application launches with a First Run Wizard if no configuration exists.
 
-### Step 2: Setup First Connection
+---
 
-Since no connections exist yet, you need to create a connection profile:
+## Step 2: Configure OpenAI API Key
 
-**Option A: Via Code (temporary for demo)**
+On first launch, or via **⚙️ Settings**:
 
-Create a temporary demo connection via code. Add the following to `MainViewModel.cs` in the `InitializeAsync` method:
+1. Click **⚙️ Settings** in the top-right corner
+2. Enter your OpenAI API Key
+3. Select model (recommended: `gpt-4`)
+4. Click **Save**
 
-```csharp
-// Create demo connection (for testing only)
-if (profiles.Count == 0)
-{
-    var demoProfile = new ConnectionProfile
-    {
-        Name = "Demo SQL Server (LocalDB)",
-        Server = "(localdb)\\MSSQLLocalDB",
-        Database = "master",
-        AuthType = AuthenticationType.Windows,
-        ConnectionTimeout = 30
-    };
-    await _connectionManager.SaveProfileAsync(demoProfile);
-    ConnectionProfiles.Add(demoProfile);
-}
-```
+> Your API key is encrypted using Windows DPAPI and stored securely.
 
-**Option B: Manually (production)**
+---
 
-Currently the menu for creating connections is missing. Add a menu to `MainWindow.xaml` or manually create `connections.json` in `%AppData%\VeritasSQL`:
+## Step 3: Create Database Connection
 
-```json
-[
-  {
-    "Id": "demo-001",
-    "Name": "Local Database",
-    "DatabaseType": 0,
-    "Server": "(localdb)\\MSSQLLocalDB",
-    "Database": "AdventureWorks2019",
-    "AuthType": 0,
-    "ConnectionTimeout": 30,
-    "CreatedAt": "2025-10-15T08:00:00Z"
-  }
-]
-```
+1. Click **New** next to the Connection dropdown
+2. Enter connection details:
 
-### Step 3: Configure OpenAI API Key
+| Field | Example |
+|-------|---------|
+| Name | My Database |
+| Server | `localhost` or `(localdb)\MSSQLLocalDB` |
+| Database | AdventureWorks2019 |
+| Authentication | Windows |
 
-Create `%AppData%\VeritasSQL\settings.json`:
+3. Click **Test Connection** to verify
+4. Click **Save**
 
-```json
-{
-  "EncryptedOpenAIApiKey": null,
-  "DefaultRowLimit": 100,
-  "MaxRowLimit": 10000,
-  "QueryTimeoutSeconds": 30,
-  "Language": "en-US",
-  "DryRunByDefault": true,
-  "ShowExplanations": true,
-  "OpenAIModel": "gpt-4"
-}
-```
+---
 
-**Important**: The API key must be encrypted. Use the application to set it (via Settings dialog).
+## Step 4: Connect and Load Schema
 
-**Temporary solution for demo**: Set the API key directly in code in `OpenAIService`:
+1. Select your connection from the dropdown
+2. Click **Connect**
+3. Click **Load Schema**
 
-```csharp
-public OpenAIService(string? apiKey = "sk-YOUR-API-KEY-HERE", string model = "gpt-4")
-```
+The schema tree appears in the left panel showing all tables and views.
 
-### Step 4: Connect & Load Schema
+---
 
-1. Select connection from dropdown list
-2. Click **"Connect"**
-3. Click **"Load Schema"**
+## Step 5: Your First Query
 
-The schema should now appear in the left panel.
-
-### Step 5: First Query
-
-Enter in the input field:
+Type a question in natural language:
 
 ```
-Show me all tables in the database
+Show me the top 10 customers by name
 ```
 
-Or if using AdventureWorks:
+Then:
+
+1. Click **Generate SQL** (or press `Ctrl+G`)
+2. Review the generated SQL
+3. Click **Execute** (or press `Ctrl+Enter`)
+
+Results appear in the data grid below.
+
+---
+
+## Step 6: Explore AI Features
+
+Try these powerful AI features:
+
+| Button | What it does |
+|--------|--------------|
+| **💡 Suggestions** | Get AI-generated query ideas |
+| **🤖 AI Data Insights** | Analyze your results for patterns |
+| **📝 AI Summary** | Get a natural language summary |
+| **⚠️ Detect Anomalies** | Find data quality issues |
+| **👁️ Preview** | See 5 rows before full execution |
+
+---
+
+## Example Queries
+
+Try these natural language queries:
 
 ```
-Show the top 10 products sorted by name
+Show all customers from Germany
+
+What are the top 10 products by price?
+
+How many orders per month in 2023?
+
+Show employees with their manager names
+
+Which products have never been ordered?
 ```
 
-Click **"Generate SQL"**.
+---
 
-The generated SQL appears in the SQL editor. Review it and click **"Execute"**.
+## Keyboard Shortcuts
 
-## 📋 Example Database: AdventureWorks
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+G` | Generate SQL |
+| `Ctrl+Enter` | Execute Query |
+| `Ctrl+Shift+P` | Preview (5 rows) |
+| `Ctrl+S` | Add to Favorites |
+| `F5` | Reload Schema |
 
-If you don't have your own database, download AdventureWorks:
+---
 
-### Download
+## Troubleshooting
 
-```powershell
-# Download AdventureWorks2019
-Invoke-WebRequest -Uri "https://github.com/Microsoft/sql-server-samples/releases/download/adventureworks/AdventureWorks2019.bak" -OutFile "C:\Temp\AdventureWorks2019.bak"
-```
+| Problem | Solution |
+|---------|----------|
+| "API Key not configured" | Go to Settings and enter your OpenAI API key |
+| "Connection failed" | Check server name, ensure SQL Server is running |
+| "Schema empty" | Verify database user has SELECT permissions |
+| "Query blocked" | Only SELECT statements are allowed |
 
-### Restore in SQL Server
+---
 
-```sql
-USE [master]
-RESTORE DATABASE [AdventureWorks2019]
-FROM DISK = N'C:\Temp\AdventureWorks2019.bak'
-WITH FILE = 1,
-MOVE N'AdventureWorks2017' TO N'C:\Program Files\Microsoft SQL Server\MSSQL15.MSSQLSERVER\MSSQL\DATA\AdventureWorks2019.mdf',
-MOVE N'AdventureWorks2017_log' TO N'C:\Program Files\Microsoft SQL Server\MSSQL15.MSSQLSERVER\MSSQL\DATA\AdventureWorks2019_log.ldf',
-NOUNLOAD, STATS = 5
-```
+## Next Steps
 
-### Example Queries for AdventureWorks
+- Read the full [User Manual](docs/user-manual.md)
+- Explore the [Developer Guide](docs/developer-guide.md)
+- Check out all [45 AI Features](README.md#ai-features)
 
-```
-Show all products
+---
 
-Show me the top 20 customers by name
+## Important Notes
 
-Which products cost more than 1000 dollars?
+- **API Costs**: OpenAI calls cost ~$0.01-0.03 per request with GPT-4
+- **Security**: Only SELECT queries are allowed (read-only)
+- **Encryption**: Credentials are encrypted with Windows DPAPI
+- **Audit**: All actions are logged for compliance
 
-Show all orders from 2014
+---
 
-How many products per category?
+## Need Help?
 
-Show the 10 most expensive products with their subcategory
-```
-
-## 🔧 Troubleshooting
-
-### "No connection profiles available"
-
-→ Create a profile via code or JSON (see Step 2)
-
-### "OpenAI API Key not configured"
-
-→ Set the API key in settings.json (encrypted) or temporarily in code
-
-### "Connection failed"
-
-→ Check:
-- SQL Server is running
-- Server name is correct
-- Database exists
-- Windows Authentication has access
-
-### "Schema empty"
-
-→ Check:
-- Database user has SELECT rights on INFORMATION_SCHEMA
-- Database contains tables/views
-
-## 🎯 Next Steps
-
-1. **Add Menu**: Create menu for managing connections
-2. **Settings Dialog**: UI for OpenAI API Key and settings
-3. **Test Export**: Export results as CSV/Excel
-4. **Use History**: Load previous queries from history
-5. **Favorites**: Mark frequently used queries
-
-## 🆘 Support
-
-For questions or issues, open an issue in the repository or see the detailed `README.md`.
-
-## ⚠️ Important Notes
-
-- **API Costs**: OpenAI calls incur costs (~$0.01-0.03 per request with GPT-4)
-- **Security**: Use only READ-ONLY database users
-- **Encryption**: API keys and passwords are encrypted via DPAPI (current Windows user only)
-- **Audit**: All actions are logged in `%AppData%\VeritasSQL\audit.db`
+- 📖 [Full Documentation](docs/index.md)
+- 🐛 [Report Issues](../../issues)
+- 💬 [Discussions](../../discussions)

@@ -1,5 +1,6 @@
 using System.Data;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using Microsoft.Data.SqlClient;
 using VeritasSQL.Core.Models;
 
@@ -15,6 +16,35 @@ public class QueryExecutor
     public QueryExecutor(int commandTimeout = 30)
     {
         _commandTimeout = commandTimeout;
+    }
+
+    /// <summary>
+    /// Executes a preview query with limited rows (Netflix-inspired "Query Preview")
+    /// See 5 rows before loading 5 million!
+    /// </summary>
+    public async Task<QueryResult> ExecutePreviewAsync(string connectionString, string sql, int previewRows = 5)
+    {
+        var previewSql = ConvertToPreviewQuery(sql, previewRows);
+        var result = await ExecuteQueryAsync(connectionString, previewSql);
+        result.IsPreview = true;
+        result.PreviewRowLimit = previewRows;
+        return result;
+    }
+
+    /// <summary>
+    /// Converts a SQL query to a preview query with TOP N
+    /// </summary>
+    private string ConvertToPreviewQuery(string sql, int rows)
+    {
+        // Check if already has TOP
+        if (Regex.IsMatch(sql, @"SELECT\s+TOP\s+\d+", RegexOptions.IgnoreCase))
+        {
+            // Replace existing TOP with our preview limit
+            return Regex.Replace(sql, @"SELECT\s+TOP\s+\d+", $"SELECT TOP {rows}", RegexOptions.IgnoreCase);
+        }
+        
+        // Add TOP after SELECT
+        return Regex.Replace(sql, @"SELECT\s+", $"SELECT TOP {rows} ", RegexOptions.IgnoreCase);
     }
 
     public async Task<QueryResult> ExecuteQueryAsync(string connectionString, string sql)

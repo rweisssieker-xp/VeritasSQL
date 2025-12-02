@@ -13,6 +13,16 @@ public class QueryResult
     public TimeSpan ExecutionTime { get; set; }
     public string? ErrorMessage { get; set; }
     public string SqlQuery { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Indicates if this is a preview result (limited rows)
+    /// </summary>
+    public bool IsPreview { get; set; }
+    
+    /// <summary>
+    /// The row limit used for preview (e.g., 5)
+    /// </summary>
+    public int PreviewRowLimit { get; set; }
 }
 
 /// <summary>

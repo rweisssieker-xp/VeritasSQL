@@ -2,6 +2,24 @@
 
 A WPF desktop application that translates natural language questions into secure SQL SELECT queries and executes them - enhanced with **45 revolutionary AI features** that transform database interaction into an intelligent, conversational, enterprise-grade experience.
 
+[![.NET](https://img.shields.io/badge/.NET-8.0-512BD4)](https://dotnet.microsoft.com/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows-blue)](https://www.microsoft.com/windows)
+
+## 📚 Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Quick Start](QUICKSTART.md) | Get running in 5 minutes |
+| [User Manual](docs/user-manual.md) | Complete end-user guide |
+| [Developer Guide](docs/developer-guide.md) | Setup and contribution guide |
+| [Architecture](docs/architecture.md) | System design documentation |
+| [API Reference](docs/api-reference.md) | Service and model reference |
+| [Contributing](CONTRIBUTING.md) | How to contribute |
+| [Changelog](CHANGELOG.md) | Version history |
+
+---
+
 ## Overview
 
 VeritasSQL transforms natural language questions into secure SQL queries with **enterprise-grade security**, **AI-powered insights**, and **intelligent automation**. More than just a translator - it's your complete AI-powered data analysis assistant with capabilities rivaling enterprise BI tools.

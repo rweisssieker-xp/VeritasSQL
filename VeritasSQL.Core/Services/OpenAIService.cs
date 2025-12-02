@@ -14,7 +14,7 @@ public class OpenAIService
     private string? _apiKey;
     private string _model;
 
-    public OpenAIService(string? apiKey = null, string model = "gpt-5.1")
+    public OpenAIService(string? apiKey = null, string model = "gpt-4")
     {
         _apiKey = apiKey;
         _model = model;
@@ -23,7 +23,7 @@ public class OpenAIService
     /// <summary>
     /// Updates the API key and model (useful for late initialization)
     /// </summary>
-    public void Configure(string apiKey, string model = "gpt-5.1")
+    public void Configure(string apiKey, string model = "gpt-4")
     {
         _apiKey = apiKey;
         _model = model;
@@ -2358,6 +2358,128 @@ Return JSON:
         catch (Exception ex)
         {
             throw new InvalidOperationException($"Error checking compliance: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Feature #41: Database First Date - Generate "getting to know you" queries for a new database
+    /// Inspired by Tinder's icebreakers - 5 questions to know your new database!
+    /// </summary>
+    public async Task<DatabaseFirstDateResult> GenerateFirstDateQueriesAsync(SchemaInfo schema)
+    {
+        if (string.IsNullOrEmpty(_apiKey))
+        {
+            throw new InvalidOperationException("OpenAI API Key is not configured");
+        }
+
+        var client = new ChatClient(_model, _apiKey);
+        var schemaInfo = SerializeSchema(schema);
+
+        var prompt = $@"You are a database exploration expert. A user just connected to a new database for the first time.
+Generate 5 insightful ""first date"" queries to help them understand this database quickly.
+
+Schema:
+{schemaInfo}
+
+Create queries that reveal:
+1. The most interesting/central data (e.g., main business entities)
+2. Data volume and freshness (how much data, how recent)
+3. Key relationships between tables
+4. Data quality indicators (nulls, duplicates)
+5. A surprising or insightful fact about the data
+
+For each query, explain WHY this is valuable for understanding the database.
+
+Return JSON:
+{{
+  ""databaseNickname"": ""The Customer Hub"",
+  ""databasePersonality"": ""A well-organized e-commerce database with rich customer data"",
+  ""queries"": [
+    {{
+      ""order"": 1,
+      ""title"": ""Meet Your Main Characters"",
+      ""description"": ""Discover the central entities in this database"",
+      ""sql"": ""SELECT TOP 10 * FROM Customers ORDER BY CreatedDate DESC"",
+      ""insight"": ""This shows you the most recent customers - the lifeblood of the business"",
+      ""emoji"": ""👥"",
+      ""category"": ""Core Data""
+    }},
+    {{
+      ""order"": 2,
+      ""title"": ""How Fresh Is Your Data?"",
+      ""description"": ""Check when data was last updated"",
+      ""sql"": ""SELECT MAX(ModifiedDate) as LastUpdate, COUNT(*) as TotalRecords FROM Orders"",
+      ""insight"": ""Tells you if this is a live database or historical archive"",
+      ""emoji"": ""📅"",
+      ""category"": ""Freshness""
+    }},
+    {{
+      ""order"": 3,
+      ""title"": ""The Relationship Map"",
+      ""description"": ""Understand how tables connect"",
+      ""sql"": ""SELECT c.CustomerName, COUNT(o.OrderID) as OrderCount FROM Customers c LEFT JOIN Orders o ON c.CustomerID = o.CustomerID GROUP BY c.CustomerName ORDER BY OrderCount DESC"",
+      ""insight"": ""Reveals the most active relationships in your data"",
+      ""emoji"": ""🔗"",
+      ""category"": ""Relationships""
+    }},
+    {{
+      ""order"": 4,
+      ""title"": ""Data Health Check"",
+      ""description"": ""Spot potential data quality issues"",
+      ""sql"": ""SELECT COUNT(*) as Total, COUNT(Email) as WithEmail, COUNT(*) - COUNT(Email) as MissingEmail FROM Customers"",
+      ""insight"": ""Quick data quality snapshot - are there gaps?"",
+      ""emoji"": ""🏥"",
+      ""category"": ""Quality""
+    }},
+    {{
+      ""order"": 5,
+      ""title"": ""The Surprise Insight"",
+      ""description"": ""Something unexpected about your data"",
+      ""sql"": ""SELECT TOP 1 Category, COUNT(*) as Count FROM Products GROUP BY Category ORDER BY Count DESC"",
+      ""insight"": ""Discover what this business is really about"",
+      ""emoji"": ""✨"",
+      ""category"": ""Insight""
+    }}
+  ],
+  ""summary"": ""This database is a well-structured e-commerce system with 5 main tables..."",
+  ""recommendations"": [
+    ""Start by exploring the Customers table - it's the central hub"",
+    ""Check the Orders table for business activity patterns"",
+    ""The Products table has interesting categorization""
+  ]
+}}";
+
+        var messages = new List<ChatMessage>
+        {
+            new SystemChatMessage("You are a friendly database exploration guide. Make database discovery fun and insightful!"),
+            new UserChatMessage(prompt)
+        };
+
+        try
+        {
+            var response = await client.CompleteChatAsync(messages);
+            var content = response.Value.Content[0].Text;
+
+            var jsonMatch = System.Text.RegularExpressions.Regex.Match(
+                content,
+                @"\{[\s\S]*\}",
+                System.Text.RegularExpressions.RegexOptions.Multiline);
+
+            if (jsonMatch.Success)
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var result = JsonSerializer.Deserialize<DatabaseFirstDateResult>(jsonMatch.Value, options);
+                if (result != null)
+                {
+                    return result;
+                }
+            }
+
+            return new DatabaseFirstDateResult();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Error generating first date queries: {ex.Message}", ex);
         }
     }
 }

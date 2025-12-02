@@ -25,9 +25,11 @@
     <!-- Keyboard Shortcuts -->
     <Window.InputBindings>
         <KeyBinding Key="Return" Modifiers="Ctrl" Command="{Binding ExecuteQueryCommand}"/>
+        <KeyBinding Key="P" Modifiers="Ctrl+Shift" Command="{Binding PreviewQueryCommand}"/>
         <KeyBinding Key="G" Modifiers="Ctrl" Command="{Binding GenerateSqlCommand}"/>
         <KeyBinding Key="S" Modifiers="Ctrl" Command="{Binding AddToFavoritesCommand}"/>
         <KeyBinding Key="F5" Command="{Binding LoadSchemaCommand}"/>
+        <KeyBinding Key="D" Modifiers="Ctrl+Shift" Command="{Binding GenerateFirstDateCommand}"/>
         <KeyBinding Key="N" Modifiers="Ctrl" Command="{Binding NewConnectionCommand}"/>
         <KeyBinding Key="O" Modifiers="Ctrl" Command="{Binding OpenSettingsCommand}"/>
         <KeyBinding Key="H" Modifiers="Ctrl" Command="{Binding RefreshHistoryCommand}"/>
@@ -46,7 +48,8 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="300"/>
+                    <ColumnDefinition Width="250"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
@@ -74,12 +77,16 @@
                         IsEnabled="{Binding IsConnected}"
                         Margin="5,0"
                         ToolTip="Load database schema (tables, views, columns)"/>
-                <Button Grid.Column="7" Content="⚙️ Settings" Command="{Binding OpenSettingsCommand}"
+                <Button Grid.Column="6" Content="💕 First Date" Command="{Binding GenerateFirstDateCommand}"
+                        Background="#E91E63" Foreground="White"
+                        Margin="5,0"
+                        ToolTip="Database First Date: 5 AI-generated queries to explore your new database! (Tinder-inspired)"/>
+                <Button Grid.Column="8" Content="⚙️ Settings" Command="{Binding OpenSettingsCommand}"
                         Margin="5,0"
                         HorizontalAlignment="Right"
                         ToolTip="Application Settings (OpenAI API Key, etc.)"/>
 
-                <StackPanel Grid.Column="6" Orientation="Horizontal" HorizontalAlignment="Center">
+                <StackPanel Grid.Column="7" Orientation="Horizontal" HorizontalAlignment="Center">
                     <TextBlock Text="Status:" VerticalAlignment="Center" Margin="5"/>
                     <Ellipse Width="10" Height="10" Margin="5" VerticalAlignment="Center">
                         <Ellipse.Fill>
@@ -451,11 +458,18 @@
                 <!-- SQL Editor -->
                 <DockPanel Grid.Row="1" Margin="10,0,10,10">
                     <DockPanel DockPanel.Dock="Top">
-                        <Button DockPanel.Dock="Right" Content="Execute" 
-                                Command="{Binding ExecuteQueryCommand}"
-                                Background="#4CAF50" Foreground="White"
-                                Width="100" Margin="5,0,0,5"
-                                ToolTip="Execute SQL query on database (only SELECT allowed)"/>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Button Content="👁️ Preview" 
+                                    Command="{Binding PreviewQueryCommand}"
+                                    Background="#2196F3" Foreground="White"
+                                    Width="90" Margin="5,0,0,5"
+                                    ToolTip="Preview 5 rows before executing full query (Netflix-inspired: See before you commit!)"/>
+                            <Button Content="▶️ Execute" 
+                                    Command="{Binding ExecuteQueryCommand}"
+                                    Background="#4CAF50" Foreground="White"
+                                    Width="100" Margin="5,0,0,5"
+                                    ToolTip="Execute SQL query on database (only SELECT allowed)"/>
+                        </StackPanel>
                         <TextBlock Text="Generated SQL:" FontWeight="Bold" 
                                    VerticalAlignment="Center" Margin="0,0,0,5"/>
                     </DockPanel>
@@ -1171,7 +1185,7 @@
                                            Background="#F44336" Foreground="White"/>
                                     <TextBlock VerticalAlignment="Center" Margin="20,0,0,0">
                                         <Run Text="Total: "/>
-                                        <Run Text="{Binding FilteredHistory.Count, FallbackValue=0}" FontWeight="Bold"/>
+                                        <Run Text="{Binding FilteredHistory.Count, Mode=OneWay, FallbackValue=0}" FontWeight="Bold"/>
                                         <Run Text=" queries"/>
                                     </TextBlock>
                                 </StackPanel>
@@ -1406,7 +1420,7 @@
                                        Background="#00BCD4" Foreground="White"
                                        ToolTip="AI creates instant BI dashboard with 6-8 widgets"/>
 
-                                <TextBlock Text="{Binding GeneratedDashboard.Widgets.Count, StringFormat='Dashboard: {0} widgets'}"
+                                <TextBlock Text="{Binding GeneratedDashboard.Widgets.Count, Mode=OneWay, StringFormat='Dashboard: {0} widgets'}"
                                           Visibility="{Binding GeneratedDashboard, Converter={StaticResource NullToVisibilityConverter}}"
                                           FontWeight="Bold" Margin="5"/>
                             </StackPanel>
@@ -1436,7 +1450,7 @@
                                                       FontSize="16" FontWeight="Bold" Margin="0,5,0,0"/>
                                             <TextBlock>
                                                 <Run Text="Affected Queries: "/>
-                                                <Run Text="{Binding ImpactAnalysis.AffectedQueries.Count}" FontWeight="Bold"/>
+                                                <Run Text="{Binding ImpactAnalysis.AffectedQueries.Count, Mode=OneWay}" FontWeight="Bold"/>
                                             </TextBlock>
                                             <TextBlock>
                                                 <Run Text="Est. Downtime: "/>

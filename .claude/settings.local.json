@@ -12,7 +12,8 @@
       "Bash(powershell -Command \"Get-Process -Name VeritasSQL.WPF -ErrorAction SilentlyContinue | Select-Object Id, ProcessName, StartTime | Format-Table -AutoSize\")",
       "Bash(powershell -Command \"Get-EventLog -LogName Application -Source ''Application Error'' -Newest 5 2>&1 | Format-List -Property TimeGenerated,Message\")",
       "Bash(powershell -Command:*)",
-      "Bash(start \"\" \"C:\\tmp\\VeritasSQL\\VeritasSQL.WPF\\bin\\Debug\\net8.0-windows\\VeritasSQL.WPF.exe\")"
+      "Bash(start \"\" \"C:\\tmp\\VeritasSQL\\VeritasSQL.WPF\\bin\\Debug\\net8.0-windows\\VeritasSQL.WPF.exe\")",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
     "ask": []

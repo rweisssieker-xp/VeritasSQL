@@ -66,8 +66,8 @@ public partial class App : Application
         services.AddSingleton<OpenAIService>(sp =>
         {
             // Start with empty API key to avoid blocking on startup
-            // Using gpt-5.1 - the latest and most capable model for complex reasoning
-            return new OpenAIService("", "gpt-5.1");
+            // Using gpt-4 - a valid and capable model for complex reasoning
+            return new OpenAIService("", "gpt-4");
         });
 
         // Export Services
@@ -86,7 +86,7 @@ public partial class App : Application
         try
         {
             var settingsService = _serviceProvider!.GetRequiredService<SettingsService>();
-            var connectionManager = _serviceProvider.GetRequiredService<ConnectionManager>();
+            var connectionManager = _serviceProvider!.GetRequiredService<ConnectionManager>();
             
             var settings = await settingsService.GetSettingsAsync();
             var connections = await connectionManager.GetProfilesAsync();
