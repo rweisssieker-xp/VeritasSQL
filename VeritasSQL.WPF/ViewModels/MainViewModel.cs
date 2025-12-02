@@ -6,6 +6,10 @@ using System.Text;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LiveChartsCore;
+using LiveChartsCore.SkiaSharpView;
+using LiveChartsCore.SkiaSharpView.Painting;
+using SkiaSharp;
 using VeritasSQL.Core.Data;
 using VeritasSQL.Core.Models;
 using VeritasSQL.Core.Services;
@@ -200,6 +204,78 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private string _buildDate = string.Empty;
+
+    // Chart Properties
+    [ObservableProperty]
+    private int _selectedChartTypeIndex = 0;
+
+    [ObservableProperty]
+    private ObservableCollection<string> _chartColumnNames = new();
+
+    [ObservableProperty]
+    private ObservableCollection<string> _chartNumericColumns = new();
+
+    [ObservableProperty]
+    private string? _selectedXAxisColumn;
+
+    [ObservableProperty]
+    private string? _selectedYAxisColumn;
+
+    [ObservableProperty]
+    private bool _isBarChartVisible = true;
+
+    [ObservableProperty]
+    private bool _isPieChartVisible = false;
+
+    [ObservableProperty]
+    private bool _hasNoChartData = true;
+
+    [ObservableProperty]
+    private ObservableCollection<LiveChartsCore.ISeries> _chartSeries = new();
+
+    [ObservableProperty]
+    private ObservableCollection<LiveChartsCore.ISeries> _pieChartSeries = new();
+
+    [ObservableProperty]
+    private ObservableCollection<LiveChartsCore.SkiaSharpView.Axis> _chartXAxes = new();
+
+    [ObservableProperty]
+    private ObservableCollection<LiveChartsCore.SkiaSharpView.Axis> _chartYAxes = new();
+
+    // Query Templates
+    [ObservableProperty]
+    private ObservableCollection<QueryTemplate> _queryTemplates = new();
+
+    [ObservableProperty]
+    private QueryTemplate? _selectedTemplate;
+
+    [ObservableProperty]
+    private string _templateFilter = string.Empty;
+
+    // Advanced History Search
+    [ObservableProperty]
+    private string _historySearchText = string.Empty;
+
+    [ObservableProperty]
+    private ConnectionProfile? _historyFilterConnection;
+
+    [ObservableProperty]
+    private DateTime? _historyFilterDateFrom;
+
+    [ObservableProperty]
+    private DateTime? _historyFilterDateTo;
+
+    [ObservableProperty]
+    private bool _historyFilterSuccessOnly;
+
+    [ObservableProperty]
+    private int _historySortIndex = 0; // 0=Newest, 1=Oldest, 2=Fastest, 3=Slowest, 4=MostRows
+
+    [ObservableProperty]
+    private ObservableCollection<QueryHistoryEntry> _filteredHistory = new();
+
+    [ObservableProperty]
+    private QueryHistoryEntry? _selectedHistoryItem;
 
     public MainViewModel(
         ConnectionManager connectionManager,
@@ -651,8 +727,10 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            var history = await _historyService.GetHistoryAsync(50);
+            var history = await _historyService.GetHistoryAsync(100); // Load more for filtering
             History = new ObservableCollection<QueryHistoryEntry>(history);
+            FilteredHistory = new ObservableCollection<QueryHistoryEntry>(history);
+            StatusMessage = $"Loaded {history.Count} history entries";
         }
         catch (Exception ex)
         {
@@ -2078,5 +2156,542 @@ public partial class MainViewModel : ObservableObject
             }
         }
     }
+
+    #region Advanced History Commands
+
+    /// <summary>
+    /// Searches and filters history based on current filter settings
+    /// </summary>
+    [RelayCommand]
+    private void SearchHistory()
+    {
+        var filtered = History.AsEnumerable();
+
+        // Text search
+        if (!string.IsNullOrWhiteSpace(HistorySearchText))
+        {
+            var searchLower = HistorySearchText.ToLower();
+            filtered = filtered.Where(h =>
+                (h.NaturalLanguageQuery?.ToLower().Contains(searchLower) == true) ||
+                (h.GeneratedSql?.ToLower().Contains(searchLower) == true) ||
+                (h.ConnectionProfileName?.ToLower().Contains(searchLower) == true));
+        }
+
+        // Connection filter
+        if (HistoryFilterConnection != null)
+        {
+            filtered = filtered.Where(h => h.ConnectionProfileId == HistoryFilterConnection.Id);
+        }
+
+        // Date range filter
+        if (HistoryFilterDateFrom.HasValue)
+        {
+            filtered = filtered.Where(h => h.ExecutedAt >= HistoryFilterDateFrom.Value);
+        }
+        if (HistoryFilterDateTo.HasValue)
+        {
+            filtered = filtered.Where(h => h.ExecutedAt <= HistoryFilterDateTo.Value.AddDays(1));
+        }
+
+        // Success filter
+        if (HistoryFilterSuccessOnly)
+        {
+            filtered = filtered.Where(h => h.Success);
+        }
+
+        // Sorting
+        filtered = HistorySortIndex switch
+        {
+            0 => filtered.OrderByDescending(h => h.ExecutedAt), // Newest
+            1 => filtered.OrderBy(h => h.ExecutedAt), // Oldest
+            2 => filtered.OrderBy(h => h.ExecutionTimeMs), // Fastest
+            3 => filtered.OrderByDescending(h => h.ExecutionTimeMs), // Slowest
+            4 => filtered.OrderByDescending(h => h.RowCount), // Most Rows
+            _ => filtered.OrderByDescending(h => h.ExecutedAt)
+        };
+
+        FilteredHistory = new ObservableCollection<QueryHistoryEntry>(filtered);
+        StatusMessage = $"Found {FilteredHistory.Count} queries matching filters";
+    }
+
+    /// <summary>
+    /// Clears all history filters
+    /// </summary>
+    [RelayCommand]
+    private void ClearHistoryFilters()
+    {
+        HistorySearchText = string.Empty;
+        HistoryFilterConnection = null;
+        HistoryFilterDateFrom = null;
+        HistoryFilterDateTo = null;
+        HistoryFilterSuccessOnly = false;
+        HistorySortIndex = 0;
+        FilteredHistory = new ObservableCollection<QueryHistoryEntry>(History);
+        StatusMessage = "Filters cleared";
+    }
+
+    /// <summary>
+    /// Loads the selected history item into the query editor
+    /// </summary>
+    [RelayCommand]
+    private void LoadSelectedHistory()
+    {
+        if (SelectedHistoryItem == null)
+        {
+            MessageBox.Show("Please select a history item first.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        NaturalLanguageQuery = SelectedHistoryItem.NaturalLanguageQuery ?? string.Empty;
+        GeneratedSql = SelectedHistoryItem.GeneratedSql ?? string.Empty;
+        StatusMessage = $"Loaded query from {SelectedHistoryItem.ExecutedAt:g}";
+    }
+
+    /// <summary>
+    /// Adds selected history item to favorites
+    /// </summary>
+    [RelayCommand]
+    private async Task AddHistoryToFavoritesAsync()
+    {
+        if (SelectedHistoryItem == null)
+        {
+            MessageBox.Show("Please select a history item first.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        // Use a simple name based on the query
+        var defaultName = SelectedHistoryItem.NaturalLanguageQuery?.Length > 50 
+            ? SelectedHistoryItem.NaturalLanguageQuery.Substring(0, 47) + "..."
+            : SelectedHistoryItem.NaturalLanguageQuery ?? "My Query";
+
+        SelectedHistoryItem.IsFavorite = true;
+        SelectedHistoryItem.FavoriteName = defaultName;
+        SelectedHistoryItem.FavoriteDescription = $"Added from history on {DateTime.Now:g}";
+
+        await _historyService.UpdateEntryAsync(SelectedHistoryItem);
+        await RefreshFavoritesAsync();
+        StatusMessage = $"Added to favorites: {defaultName}";
+        MessageBox.Show($"Query added to favorites!\n\nName: {defaultName}", "Added to Favorites", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    /// <summary>
+    /// Exports selected history items to CSV
+    /// </summary>
+    [RelayCommand]
+    private void ExportSelectedHistory()
+    {
+        if (FilteredHistory.Count == 0)
+        {
+            MessageBox.Show("No history items to export.", "Nothing to Export", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var saveDialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "CSV File (*.csv)|*.csv",
+            DefaultExt = ".csv",
+            FileName = $"QueryHistory_{DateTime.Now:yyyyMMdd_HHmmss}"
+        };
+
+        if (saveDialog.ShowDialog() == true)
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine("ExecutedAt,NaturalLanguageQuery,GeneratedSql,ConnectionProfile,RowCount,ExecutionTimeMs,Success");
+
+                foreach (var item in FilteredHistory)
+                {
+                    sb.AppendLine($"\"{item.ExecutedAt:yyyy-MM-dd HH:mm:ss}\",\"{EscapeCsv(item.NaturalLanguageQuery)}\",\"{EscapeCsv(item.GeneratedSql)}\",\"{item.ConnectionProfileName}\",{item.RowCount},{item.ExecutionTimeMs:F0},{item.Success}");
+                }
+
+                File.WriteAllText(saveDialog.FileName, sb.ToString());
+                StatusMessage = $"Exported {FilteredHistory.Count} history items to {Path.GetFileName(saveDialog.FileName)}";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error exporting history: {ex.Message}", "Export Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+    }
+
+    private string EscapeCsv(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return string.Empty;
+        return value.Replace("\"", "\"\"").Replace("\n", " ").Replace("\r", " ");
+    }
+
+    /// <summary>
+    /// Deletes selected history items
+    /// </summary>
+    [RelayCommand]
+    private async Task DeleteSelectedHistoryAsync()
+    {
+        if (SelectedHistoryItem == null)
+        {
+            MessageBox.Show("Please select a history item first.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var result = MessageBox.Show(
+            $"Are you sure you want to delete this query from history?\n\n\"{SelectedHistoryItem.NaturalLanguageQuery?.Substring(0, Math.Min(100, SelectedHistoryItem.NaturalLanguageQuery?.Length ?? 0))}...\"",
+            "Confirm Delete",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (result == MessageBoxResult.Yes)
+        {
+            await _historyService.DeleteEntryAsync(SelectedHistoryItem.Id);
+            History.Remove(SelectedHistoryItem);
+            FilteredHistory.Remove(SelectedHistoryItem);
+            StatusMessage = "History item deleted";
+        }
+    }
+
+    #endregion
+
+    #region Template Commands
+
+    /// <summary>
+    /// Loads the built-in query templates
+    /// </summary>
+    [RelayCommand]
+    private void LoadTemplates()
+    {
+        var templates = BuiltInTemplates.GetAll();
+        
+        // Apply filter if set
+        if (!string.IsNullOrWhiteSpace(TemplateFilter))
+        {
+            var filter = TemplateFilter.ToLower();
+            templates = templates.Where(t => 
+                t.Name.ToLower().Contains(filter) || 
+                t.Category.ToLower().Contains(filter) ||
+                t.Description.ToLower().Contains(filter)).ToList();
+        }
+        
+        QueryTemplates = new ObservableCollection<QueryTemplate>(templates);
+        StatusMessage = $"Loaded {QueryTemplates.Count} query templates";
+    }
+
+    /// <summary>
+    /// Applies the selected template to the query input
+    /// </summary>
+    [RelayCommand]
+    private void ApplyTemplate()
+    {
+        if (SelectedTemplate == null)
+        {
+            MessageBox.Show("Please select a template first.", "No Template Selected", 
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        // Use the natural language template
+        NaturalLanguageQuery = SelectedTemplate.NaturalLanguageTemplate;
+        StatusMessage = $"Applied template: {SelectedTemplate.Name}";
+    }
+
+    /// <summary>
+    /// Applies template and generates SQL immediately
+    /// </summary>
+    [RelayCommand]
+    private async Task ApplyAndGenerateTemplateAsync()
+    {
+        if (SelectedTemplate == null)
+        {
+            MessageBox.Show("Please select a template first.", "No Template Selected", 
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        NaturalLanguageQuery = SelectedTemplate.NaturalLanguageTemplate;
+        
+        if (CurrentSchema != null && !string.IsNullOrEmpty(NaturalLanguageQuery))
+        {
+            await GenerateSqlAsync();
+        }
+    }
+
+    #endregion
+
+    #region Chart Commands
+
+    /// <summary>
+    /// Refreshes the chart based on current data and settings
+    /// </summary>
+    [RelayCommand]
+    private void RefreshChart()
+    {
+        if (QueryResults == null || QueryResults.Rows.Count == 0)
+        {
+            HasNoChartData = true;
+            IsBarChartVisible = false;
+            IsPieChartVisible = false;
+            return;
+        }
+
+        HasNoChartData = false;
+        UpdateChartColumns();
+
+        if (string.IsNullOrEmpty(SelectedXAxisColumn) || string.IsNullOrEmpty(SelectedYAxisColumn))
+        {
+            // Auto-select first suitable columns
+            if (ChartColumnNames.Count > 0)
+                SelectedXAxisColumn = ChartColumnNames[0];
+            if (ChartNumericColumns.Count > 0)
+                SelectedYAxisColumn = ChartNumericColumns[0];
+        }
+
+        UpdateChart();
+    }
+
+    /// <summary>
+    /// Auto-generates the best chart type based on data
+    /// </summary>
+    [RelayCommand]
+    private void AutoGenerateChart()
+    {
+        if (QueryResults == null || QueryResults.Rows.Count == 0)
+        {
+            MessageBox.Show("No data to visualize. Execute a query first.", "No Data", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        UpdateChartColumns();
+
+        // Auto-select columns
+        if (ChartColumnNames.Count > 0)
+            SelectedXAxisColumn = ChartColumnNames[0];
+        if (ChartNumericColumns.Count > 0)
+            SelectedYAxisColumn = ChartNumericColumns[0];
+
+        // Auto-select chart type based on data characteristics
+        var rowCount = QueryResults.Rows.Count;
+        var numericCount = ChartNumericColumns.Count;
+        var categoryCount = ChartColumnNames.Count - numericCount;
+
+        if (rowCount <= 10 && categoryCount > 0)
+        {
+            // Few categories - pie chart works well
+            SelectedChartTypeIndex = 2; // Pie
+        }
+        else if (rowCount > 20)
+        {
+            // Many data points - line chart
+            SelectedChartTypeIndex = 1; // Line
+        }
+        else
+        {
+            // Default to bar chart
+            SelectedChartTypeIndex = 0; // Bar
+        }
+
+        UpdateChart();
+        StatusMessage = "Chart auto-generated based on data characteristics";
+    }
+
+    /// <summary>
+    /// Updates the available columns for chart axes
+    /// </summary>
+    private void UpdateChartColumns()
+    {
+        ChartColumnNames.Clear();
+        ChartNumericColumns.Clear();
+
+        if (QueryResults == null) return;
+
+        foreach (DataColumn column in QueryResults.Columns)
+        {
+            ChartColumnNames.Add(column.ColumnName);
+
+            // Check if column is numeric
+            if (IsNumericType(column.DataType))
+            {
+                ChartNumericColumns.Add(column.ColumnName);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Checks if a type is numeric
+    /// </summary>
+    private bool IsNumericType(Type type)
+    {
+        return type == typeof(int) || type == typeof(long) || type == typeof(short) ||
+               type == typeof(decimal) || type == typeof(double) || type == typeof(float) ||
+               type == typeof(byte) || type == typeof(sbyte) || type == typeof(uint) ||
+               type == typeof(ulong) || type == typeof(ushort);
+    }
+
+    /// <summary>
+    /// Updates the chart based on current settings
+    /// </summary>
+    public void UpdateChart()
+    {
+        if (QueryResults == null || string.IsNullOrEmpty(SelectedXAxisColumn) || string.IsNullOrEmpty(SelectedYAxisColumn))
+        {
+            return;
+        }
+
+        try
+        {
+            // Get data
+            var labels = new List<string>();
+            var values = new List<double>();
+
+            foreach (DataRow row in QueryResults.Rows)
+            {
+                var label = row[SelectedXAxisColumn]?.ToString() ?? "N/A";
+                labels.Add(label.Length > 20 ? label.Substring(0, 17) + "..." : label);
+
+                if (double.TryParse(row[SelectedYAxisColumn]?.ToString(), out double value))
+                {
+                    values.Add(value);
+                }
+                else
+                {
+                    values.Add(0);
+                }
+            }
+
+            // Limit to first 50 items for performance
+            if (labels.Count > 50)
+            {
+                labels = labels.Take(50).ToList();
+                values = values.Take(50).ToList();
+            }
+
+            // Update chart based on type
+            switch (SelectedChartTypeIndex)
+            {
+                case 0: // Bar Chart
+                case 3: // Column Chart
+                    CreateBarChart(labels, values);
+                    break;
+                case 1: // Line Chart
+                    CreateLineChart(labels, values);
+                    break;
+                case 2: // Pie Chart
+                    CreatePieChart(labels, values);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Error creating chart: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Creates a bar chart
+    /// </summary>
+    private void CreateBarChart(List<string> labels, List<double> values)
+    {
+        IsBarChartVisible = true;
+        IsPieChartVisible = false;
+        HasNoChartData = false;
+
+        ChartSeries = new ObservableCollection<ISeries>
+        {
+            new ColumnSeries<double>
+            {
+                Values = values,
+                Name = SelectedYAxisColumn,
+                Fill = new SolidColorPaint(SKColors.DodgerBlue)
+            }
+        };
+
+        ChartXAxes = new ObservableCollection<Axis>
+        {
+            new Axis
+            {
+                Labels = labels,
+                LabelsRotation = labels.Count > 10 ? 45 : 0,
+                Name = SelectedXAxisColumn
+            }
+        };
+
+        ChartYAxes = new ObservableCollection<Axis>
+        {
+            new Axis
+            {
+                Name = SelectedYAxisColumn
+            }
+        };
+    }
+
+    /// <summary>
+    /// Creates a line chart
+    /// </summary>
+    private void CreateLineChart(List<string> labels, List<double> values)
+    {
+        IsBarChartVisible = true;
+        IsPieChartVisible = false;
+        HasNoChartData = false;
+
+        ChartSeries = new ObservableCollection<ISeries>
+        {
+            new LineSeries<double>
+            {
+                Values = values,
+                Name = SelectedYAxisColumn,
+                Stroke = new SolidColorPaint(SKColors.DodgerBlue) { StrokeThickness = 2 },
+                GeometryStroke = new SolidColorPaint(SKColors.DodgerBlue) { StrokeThickness = 2 },
+                GeometryFill = new SolidColorPaint(SKColors.White),
+                GeometrySize = 8
+            }
+        };
+
+        ChartXAxes = new ObservableCollection<Axis>
+        {
+            new Axis
+            {
+                Labels = labels,
+                LabelsRotation = labels.Count > 10 ? 45 : 0,
+                Name = SelectedXAxisColumn
+            }
+        };
+
+        ChartYAxes = new ObservableCollection<Axis>
+        {
+            new Axis
+            {
+                Name = SelectedYAxisColumn
+            }
+        };
+    }
+
+    /// <summary>
+    /// Creates a pie chart
+    /// </summary>
+    private void CreatePieChart(List<string> labels, List<double> values)
+    {
+        IsBarChartVisible = false;
+        IsPieChartVisible = true;
+        HasNoChartData = false;
+
+        var colors = new SKColor[]
+        {
+            SKColors.DodgerBlue, SKColors.Coral, SKColors.MediumSeaGreen,
+            SKColors.Gold, SKColors.MediumPurple, SKColors.Tomato,
+            SKColors.Teal, SKColors.Orange, SKColors.SlateBlue, SKColors.LimeGreen
+        };
+
+        var pieSeries = new ObservableCollection<ISeries>();
+        for (int i = 0; i < Math.Min(labels.Count, 10); i++) // Limit to 10 slices
+        {
+            pieSeries.Add(new PieSeries<double>
+            {
+                Values = new[] { values[i] },
+                Name = labels[i],
+                Fill = new SolidColorPaint(colors[i % colors.Length])
+            });
+        }
+
+        PieChartSeries = pieSeries;
+    }
+
+    #endregion
 }
 

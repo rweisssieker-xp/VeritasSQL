@@ -22,6 +22,16 @@ public partial class SettingsDialog : Window
 
     private void LoadSettings(AppSettings settings)
     {
+        // Set Theme
+        foreach (System.Windows.Controls.ComboBoxItem item in ThemeComboBox.Items)
+        {
+            if (item.Tag?.ToString() == settings.Theme)
+            {
+                ThemeComboBox.SelectedItem = item;
+                break;
+            }
+        }
+
         // Set API Key if available (decrypt first)
         var apiKey = settings.GetOpenAIApiKey();
         if (!string.IsNullOrEmpty(apiKey))
@@ -84,7 +94,8 @@ public partial class SettingsDialog : Window
                 DefaultRowLimit = defaultLimit,
                 MaxRowLimit = maxLimit,
                 QueryTimeoutSeconds = timeout,
-                OpenAIModel = (ModelComboBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag?.ToString() ?? "gpt-4"
+                OpenAIModel = (ModelComboBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag?.ToString() ?? "gpt-5.1",
+                Theme = (ThemeComboBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag?.ToString() ?? "Light"
             };
 
             // Encrypt and set API key if provided

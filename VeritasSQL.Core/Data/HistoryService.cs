@@ -165,6 +165,34 @@ public class HistoryService
         await command.ExecuteNonQueryAsync();
     }
 
+    /// <summary>
+    /// Updates a complete history entry
+    /// </summary>
+    public async Task UpdateEntryAsync(QueryHistoryEntry entry)
+    {
+        await using var connection = new SQLiteConnection($"Data Source={_dbPath};Version=3;");
+        await connection.OpenAsync();
+
+        const string sql = @"
+            UPDATE QueryHistory 
+            SET NaturalLanguageQuery = @NLQuery,
+                GeneratedSql = @Sql,
+                IsFavorite = @IsFav,
+                FavoriteName = @FavName,
+                FavoriteDescription = @FavDesc
+            WHERE Id = @Id";
+
+        await using var command = new SQLiteCommand(sql, connection);
+        command.Parameters.AddWithValue("@Id", entry.Id);
+        command.Parameters.AddWithValue("@NLQuery", entry.NaturalLanguageQuery);
+        command.Parameters.AddWithValue("@Sql", entry.GeneratedSql);
+        command.Parameters.AddWithValue("@IsFav", entry.IsFavorite ? 1 : 0);
+        command.Parameters.AddWithValue("@FavName", (object?)entry.FavoriteName ?? DBNull.Value);
+        command.Parameters.AddWithValue("@FavDesc", (object?)entry.FavoriteDescription ?? DBNull.Value);
+
+        await command.ExecuteNonQueryAsync();
+    }
+
     public async Task DeleteEntryAsync(int id)
     {
         await using var connection = new SQLiteConnection($"Data Source={_dbPath};Version=3;");

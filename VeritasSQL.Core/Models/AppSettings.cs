@@ -12,7 +12,8 @@ public class AppSettings
     public string Language { get; set; } = "en-US";
     public bool DryRunByDefault { get; set; } = true;
     public bool ShowExplanations { get; set; } = true;
-    public string OpenAIModel { get; set; } = "gpt-5-nano";
+    public string OpenAIModel { get; set; } = "gpt-5.1";
+    public string Theme { get; set; } = "Light"; // Light, Dark, System
     
     public string? GetOpenAIApiKey()
     {

@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:VeritasSQL.WPF"
         xmlns:avalonEdit="http://icsharpcode.net/sharpdevelop/avalonedit"
+        xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
         mc:Ignorable="d"
         Title="VeritasSQL - Natural Language to SQL" 
         Height="900" Width="1400"
@@ -20,6 +21,18 @@
         <local:SeverityToBackgroundConverter x:Key="SeverityToBackgroundConverter"/>
         <local:TextToDocumentConverter x:Key="TextToDocumentConverter"/>
     </Window.Resources>
+    
+    <!-- Keyboard Shortcuts -->
+    <Window.InputBindings>
+        <KeyBinding Key="Return" Modifiers="Ctrl" Command="{Binding ExecuteQueryCommand}"/>
+        <KeyBinding Key="G" Modifiers="Ctrl" Command="{Binding GenerateSqlCommand}"/>
+        <KeyBinding Key="S" Modifiers="Ctrl" Command="{Binding AddToFavoritesCommand}"/>
+        <KeyBinding Key="F5" Command="{Binding LoadSchemaCommand}"/>
+        <KeyBinding Key="N" Modifiers="Ctrl" Command="{Binding NewConnectionCommand}"/>
+        <KeyBinding Key="O" Modifiers="Ctrl" Command="{Binding OpenSettingsCommand}"/>
+        <KeyBinding Key="H" Modifiers="Ctrl" Command="{Binding RefreshHistoryCommand}"/>
+        <KeyBinding Key="E" Modifiers="Ctrl" Command="{Binding ExportToCsvCommand}"/>
+    </Window.InputBindings>
     
     <Grid>
         <Grid.RowDefinitions>
@@ -213,6 +226,54 @@
                                                             CommandParameter="{Binding}"
                                                             Margin="0,5,0,0"
                                                             Background="#2196F3" Foreground="White"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </TabItem>
+
+                    <!-- Query Templates Tab -->
+                    <TabItem Header="📋 Templates">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Top" Margin="5">
+                                <Button Content="📋 Load Templates"
+                                        Command="{Binding LoadTemplatesCommand}"
+                                        Margin="0,5"
+                                        Background="#607D8B" Foreground="White"
+                                        ToolTip="Load built-in query templates"/>
+                                <TextBox Text="{Binding TemplateFilter, UpdateSourceTrigger=PropertyChanged}"
+                                        Margin="0,5" Padding="5"
+                                        ToolTip="Filter templates by name or category"/>
+                            </StackPanel>
+
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding QueryTemplates}" Margin="5">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="#607D8B" BorderThickness="1"
+                                                    Margin="3" Padding="8" CornerRadius="3"
+                                                    Background="#ECEFF1"
+                                                    MouseLeftButtonDown="Template_MouseLeftButtonDown">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Name}"
+                                                              FontWeight="Bold" FontSize="12"/>
+                                                    <TextBlock Text="{Binding Description}"
+                                                              TextWrapping="Wrap" FontSize="10"
+                                                              Foreground="Gray" Margin="0,3"/>
+                                                    <Border Background="#CFD8DC" Padding="3,1" 
+                                                           CornerRadius="2" Margin="0,3"
+                                                           HorizontalAlignment="Left">
+                                                        <TextBlock Text="{Binding Category}" FontSize="9"/>
+                                                    </Border>
+                                                    <Button Content="Use Template"
+                                                            Command="{Binding DataContext.ApplyAndGenerateTemplateCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            Margin="0,5,0,0"
+                                                            Background="#607D8B" Foreground="White"
+                                                            FontSize="10"/>
                                                 </StackPanel>
                                             </Border>
                                         </DataTemplate>
@@ -854,58 +915,233 @@
                         </Grid>
                     </TabItem>
 
-                    <!-- History Tab -->
-                    <TabItem Header="History">
+                    <!-- Charts Tab -->
+                    <TabItem Header="📊 Charts">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
 
-                            <StackPanel Grid.Row="0" Orientation="Vertical" Margin="5">
-                                <StackPanel Orientation="Horizontal">
-                                    <Button Content="Refresh" Command="{Binding RefreshHistoryCommand}"/>
-                                    <TextBox Width="300" Margin="10,0,0,0"
-                                            Text="{Binding SemanticSearchQuery, UpdateSourceTrigger=PropertyChanged}"
-                                            ToolTip="Enter a question to find semantically similar queries"/>
-                                    <Button Content="🔍 AI Semantic Search"
-                                           Command="{Binding PerformSemanticSearchCommand}"
-                                           Margin="5,0,0,0"
-                                           Background="#9C27B0" Foreground="White"
-                                           ToolTip="Use AI to find queries with similar meaning"/>
-                                </StackPanel>
-
-                                <!-- Semantic Search Results -->
-                                <Expander Header="🔍 Semantic Search Results"
-                                         IsExpanded="True"
-                                         Visibility="{Binding SemanticSearchResults.Count, Converter={StaticResource NullToVisibilityConverter}}"
-                                         Margin="0,5,0,0">
-                                    <ListView ItemsSource="{Binding SemanticSearchResults}"
-                                             MaxHeight="150" Margin="5">
-                                        <ListView.View>
-                                            <GridView>
-                                                <GridViewColumn Header="Question" Width="300" DisplayMemberBinding="{Binding NaturalLanguageQuery}"/>
-                                                <GridViewColumn Header="Data Source" Width="120" DisplayMemberBinding="{Binding ConnectionProfileName}"/>
-                                            </GridView>
-                                        </ListView.View>
-                                        <ListView.ItemContainerStyle>
-                                            <Style TargetType="ListViewItem">
-                                                <EventSetter Event="MouseDoubleClick" Handler="HistoryItem_DoubleClick"/>
-                                            </Style>
-                                        </ListView.ItemContainerStyle>
-                                    </ListView>
-                                </Expander>
+                            <!-- Chart Controls -->
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10">
+                                <TextBlock Text="Chart Type:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <ComboBox x:Name="ChartTypeComboBox" Width="120" 
+                                         SelectedIndex="{Binding SelectedChartTypeIndex}"
+                                         SelectionChanged="ChartTypeComboBox_SelectionChanged">
+                                    <ComboBoxItem Content="Bar Chart"/>
+                                    <ComboBoxItem Content="Line Chart"/>
+                                    <ComboBoxItem Content="Pie Chart"/>
+                                    <ComboBoxItem Content="Column Chart"/>
+                                </ComboBox>
+                                <TextBlock Text="X-Axis:" VerticalAlignment="Center" Margin="20,0,10,0"/>
+                                <ComboBox x:Name="XAxisComboBox" Width="150"
+                                         ItemsSource="{Binding ChartColumnNames}"
+                                         SelectedItem="{Binding SelectedXAxisColumn}"
+                                         SelectionChanged="ChartAxis_SelectionChanged"/>
+                                <TextBlock Text="Y-Axis:" VerticalAlignment="Center" Margin="20,0,10,0"/>
+                                <ComboBox x:Name="YAxisComboBox" Width="150"
+                                         ItemsSource="{Binding ChartNumericColumns}"
+                                         SelectedItem="{Binding SelectedYAxisColumn}"
+                                         SelectionChanged="ChartAxis_SelectionChanged"/>
+                                <Button Content="🔄 Refresh Chart" 
+                                       Command="{Binding RefreshChartCommand}"
+                                       Margin="20,0,0,0"
+                                       Background="#4CAF50" Foreground="White"/>
+                                <Button Content="💡 Auto-Chart" 
+                                       Command="{Binding AutoGenerateChartCommand}"
+                                       Margin="10,0,0,0"
+                                       Background="#2196F3" Foreground="White"
+                                       ToolTip="AI automatically selects best chart type"/>
                             </StackPanel>
 
-                            <ListView Grid.Row="1" ItemsSource="{Binding History}" Margin="5">
+                            <!-- Chart Area -->
+                            <Border Grid.Row="1" BorderBrush="#DDD" BorderThickness="1" Margin="10" Background="White">
+                                <Grid>
+                                    <!-- Bar/Column Chart -->
+                                    <lvc:CartesianChart x:Name="BarChart"
+                                                       Series="{Binding ChartSeries}"
+                                                       XAxes="{Binding ChartXAxes}"
+                                                       YAxes="{Binding ChartYAxes}"
+                                                       Visibility="{Binding IsBarChartVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                    
+                                    <!-- Pie Chart -->
+                                    <lvc:PieChart x:Name="PieChart"
+                                                 Series="{Binding PieChartSeries}"
+                                                 Visibility="{Binding IsPieChartVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                    
+                                    <!-- No Data Message -->
+                                    <TextBlock Text="Execute a query to visualize data"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              FontSize="16" Foreground="#999"
+                                              Visibility="{Binding HasNoChartData, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </TabItem>
+
+                    <!-- History Tab -->
+                    <TabItem Header="📜 History">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Search & Filter Bar -->
+                            <Border Grid.Row="0" Background="#F5F5F5" Padding="10" Margin="5">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <!-- Search Box -->
+                                    <TextBox Grid.Row="0" Grid.Column="0"
+                                            Text="{Binding HistorySearchText, UpdateSourceTrigger=PropertyChanged}"
+                                            Padding="8" Margin="0,0,10,5"
+                                            ToolTip="Search in queries (Ctrl+F)">
+                                        <TextBox.Style>
+                                            <Style TargetType="TextBox">
+                                                <Style.Triggers>
+                                                    <Trigger Property="Text" Value="">
+                                                        <Setter Property="Background">
+                                                            <Setter.Value>
+                                                                <VisualBrush Stretch="None" AlignmentX="Left">
+                                                                    <VisualBrush.Visual>
+                                                                        <TextBlock Text="🔍 Search history..." Foreground="Gray" Margin="5,0,0,0"/>
+                                                                    </VisualBrush.Visual>
+                                                                </VisualBrush>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBox.Style>
+                                    </TextBox>
+
+                                    <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal">
+                                        <Button Content="🔍 Search" Command="{Binding SearchHistoryCommand}"
+                                               Margin="0,0,5,5" Padding="10,5"
+                                               Background="#2196F3" Foreground="White"/>
+                                        <Button Content="🔄 Refresh" Command="{Binding RefreshHistoryCommand}"
+                                               Margin="0,0,5,5" Padding="10,5"/>
+                                        <Button Content="🗑️ Clear Filters" Command="{Binding ClearHistoryFiltersCommand}"
+                                               Margin="0,0,0,5" Padding="10,5"/>
+                                    </StackPanel>
+
+                                    <!-- Filters Row -->
+                                    <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal">
+                                        <TextBlock Text="Filter:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                        <ComboBox Width="120" Margin="0,0,10,0"
+                                                 ItemsSource="{Binding ConnectionProfiles}"
+                                                 SelectedItem="{Binding HistoryFilterConnection}"
+                                                 DisplayMemberPath="Name"
+                                                 ToolTip="Filter by connection">
+                                            <ComboBox.Style>
+                                                <Style TargetType="ComboBox">
+                                                    <Style.Triggers>
+                                                        <Trigger Property="SelectedItem" Value="{x:Null}">
+                                                            <Setter Property="Text" Value="All Connections"/>
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ComboBox.Style>
+                                        </ComboBox>
+                                        <TextBlock Text="From:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                        <DatePicker SelectedDate="{Binding HistoryFilterDateFrom}" Width="110" Margin="0,0,10,0"/>
+                                        <TextBlock Text="To:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                        <DatePicker SelectedDate="{Binding HistoryFilterDateTo}" Width="110" Margin="0,0,10,0"/>
+                                        <CheckBox Content="Success Only" IsChecked="{Binding HistoryFilterSuccessOnly}"
+                                                 VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                        <TextBlock Text="Sort:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                        <ComboBox Width="100" SelectedIndex="{Binding HistorySortIndex}">
+                                            <ComboBoxItem Content="Newest"/>
+                                            <ComboBoxItem Content="Oldest"/>
+                                            <ComboBoxItem Content="Fastest"/>
+                                            <ComboBoxItem Content="Slowest"/>
+                                            <ComboBoxItem Content="Most Rows"/>
+                                        </ComboBox>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- AI Semantic Search -->
+                            <Expander Grid.Row="1" Header="🤖 AI Semantic Search" Margin="5,0,5,5">
+                                <Border Background="#F3E5F5" Padding="10">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBox Width="400"
+                                                    Text="{Binding SemanticSearchQuery, UpdateSourceTrigger=PropertyChanged}"
+                                                    Padding="8"
+                                                    ToolTip="Describe what you're looking for in natural language"/>
+                                            <Button Content="🔍 AI Search"
+                                                   Command="{Binding PerformSemanticSearchCommand}"
+                                                   Margin="10,0,0,0" Padding="15,5"
+                                                   Background="#9C27B0" Foreground="White"/>
+                                        </StackPanel>
+                                        <ListView ItemsSource="{Binding SemanticSearchResults}"
+                                                 MaxHeight="120" Margin="0,10,0,0"
+                                                 Visibility="{Binding SemanticSearchResults.Count, Converter={StaticResource NullToVisibilityConverter}}">
+                                            <ListView.View>
+                                                <GridView>
+                                                    <GridViewColumn Header="Question" Width="350" DisplayMemberBinding="{Binding NaturalLanguageQuery}"/>
+                                                    <GridViewColumn Header="Connection" Width="100" DisplayMemberBinding="{Binding ConnectionProfileName}"/>
+                                                </GridView>
+                                            </ListView.View>
+                                            <ListView.ItemContainerStyle>
+                                                <Style TargetType="ListViewItem">
+                                                    <EventSetter Event="MouseDoubleClick" Handler="HistoryItem_DoubleClick"/>
+                                                </Style>
+                                            </ListView.ItemContainerStyle>
+                                        </ListView>
+                                    </StackPanel>
+                                </Border>
+                            </Expander>
+
+                            <!-- History List -->
+                            <ListView Grid.Row="2" x:Name="HistoryListView"
+                                     ItemsSource="{Binding FilteredHistory}" 
+                                     SelectedItem="{Binding SelectedHistoryItem}"
+                                     Margin="5"
+                                     SelectionMode="Extended">
                                 <ListView.View>
                                     <GridView>
-                                        <GridViewColumn Header="Time" Width="140" 
-                                                       DisplayMemberBinding="{Binding ExecutedAt, StringFormat={}{0:MM/dd/yyyy HH:mm}}"/>
-                                        <GridViewColumn Header="Question" Width="300" DisplayMemberBinding="{Binding NaturalLanguageQuery}"/>
-                                        <GridViewColumn Header="Data Source" Width="120" DisplayMemberBinding="{Binding ConnectionProfileName}"/>
-                                        <GridViewColumn Header="Rows" Width="60" DisplayMemberBinding="{Binding RowCount}"/>
-                                        <GridViewColumn Header="Time (ms)" Width="80" DisplayMemberBinding="{Binding ExecutionTimeMs, StringFormat={}{0:F0}}"/>
+                                        <GridViewColumn Header="⏰ Time" Width="130" 
+                                                       DisplayMemberBinding="{Binding ExecutedAt, StringFormat={}{0:MM/dd HH:mm}}"/>
+                                        <GridViewColumn Header="📝 Question" Width="280" DisplayMemberBinding="{Binding NaturalLanguageQuery}"/>
+                                        <GridViewColumn Header="🔗 Connection" Width="100" DisplayMemberBinding="{Binding ConnectionProfileName}"/>
+                                        <GridViewColumn Header="📊 Rows" Width="60" DisplayMemberBinding="{Binding RowCount}"/>
+                                        <GridViewColumn Header="⚡ ms" Width="60" DisplayMemberBinding="{Binding ExecutionTimeMs, StringFormat={}{0:F0}}"/>
+                                        <GridViewColumn Header="✓" Width="30">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Success}" FontWeight="Bold">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Success}" Value="True">
+                                                                        <Setter Property="Text" Value="✓"/>
+                                                                        <Setter Property="Foreground" Value="Green"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Success}" Value="False">
+                                                                        <Setter Property="Text" Value="✗"/>
+                                                                        <Setter Property="Foreground" Value="Red"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
                                     </GridView>
                                 </ListView.View>
                                 <ListView.ItemContainerStyle>
@@ -914,11 +1150,37 @@
                                     </Style>
                                 </ListView.ItemContainerStyle>
                             </ListView>
+
+                            <!-- Action Bar -->
+                            <Border Grid.Row="3" Background="#ECEFF1" Padding="10" Margin="5,0,5,5">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="📋 Load Selected" 
+                                           Command="{Binding LoadSelectedHistoryCommand}"
+                                           Margin="0,0,10,0" Padding="10,5"
+                                           Background="#4CAF50" Foreground="White"/>
+                                    <Button Content="⭐ Add to Favorites" 
+                                           Command="{Binding AddHistoryToFavoritesCommand}"
+                                           Margin="0,0,10,0" Padding="10,5"
+                                           Background="#FFC107"/>
+                                    <Button Content="📤 Export Selected" 
+                                           Command="{Binding ExportSelectedHistoryCommand}"
+                                           Margin="0,0,10,0" Padding="10,5"/>
+                                    <Button Content="🗑️ Delete Selected" 
+                                           Command="{Binding DeleteSelectedHistoryCommand}"
+                                           Margin="0,0,10,0" Padding="10,5"
+                                           Background="#F44336" Foreground="White"/>
+                                    <TextBlock VerticalAlignment="Center" Margin="20,0,0,0">
+                                        <Run Text="Total: "/>
+                                        <Run Text="{Binding FilteredHistory.Count, FallbackValue=0}" FontWeight="Bold"/>
+                                        <Run Text=" queries"/>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
                         </Grid>
                     </TabItem>
 
                     <!-- Favorites Tab -->
-                    <TabItem Header="Favorites">
+                    <TabItem Header="⭐ Favorites">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>

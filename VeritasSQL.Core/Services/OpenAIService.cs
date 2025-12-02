@@ -14,7 +14,7 @@ public class OpenAIService
     private string? _apiKey;
     private string _model;
 
-    public OpenAIService(string? apiKey = null, string model = "gpt-4o")
+    public OpenAIService(string? apiKey = null, string model = "gpt-5.1")
     {
         _apiKey = apiKey;
         _model = model;
@@ -23,7 +23,7 @@ public class OpenAIService
     /// <summary>
     /// Updates the API key and model (useful for late initialization)
     /// </summary>
-    public void Configure(string apiKey, string model = "gpt-4o")
+    public void Configure(string apiKey, string model = "gpt-5.1")
     {
         _apiKey = apiKey;
         _model = model;

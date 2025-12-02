@@ -1,0 +1,23 @@
+installation:
+  version: 6.0.0-alpha.13
+  installDate: '2025-12-02T09:43:04.612Z'
+  lastUpdated: '2025-12-02T09:43:04.612Z'
+modules:
+  - core
+  - bmm
+ides:
+  - rovo-dev
+  - claude-code
+  - codex
+  - cursor
+  - github-copilot
+  - antigravity
+  - opencode
+  - windsurf
+  - cline
+  - gemini
+  - iflow
+  - kilo
+  - qwen
+  - roo
+  - trae

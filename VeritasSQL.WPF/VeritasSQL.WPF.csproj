@@ -7,6 +7,7 @@
   <ItemGroup>
     <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="LiveChartsCore.SkiaSharpView.WPF" Version="2.0.0-rc3.3" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.10" />
   </ItemGroup>
 

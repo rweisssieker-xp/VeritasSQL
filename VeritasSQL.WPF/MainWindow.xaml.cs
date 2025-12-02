@@ -108,6 +108,33 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Chart type selection changed
+    /// </summary>
+    private void ChartTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        _viewModel.UpdateChart();
+    }
+
+    /// <summary>
+    /// Chart axis selection changed
+    /// </summary>
+    private void ChartAxis_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        _viewModel.UpdateChart();
+    }
+
+    /// <summary>
+    /// Template item clicked
+    /// </summary>
+    private void Template_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement element && element.DataContext is QueryTemplate template)
+        {
+            _viewModel.SelectedTemplate = template;
+        }
+    }
+
+    /// <summary>
     /// Voice Input Button Click Handler
     /// Note: Full implementation requires audio recording library (e.g., NAudio)
     /// This is a placeholder showing the concept

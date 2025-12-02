@@ -36,6 +36,9 @@ public partial class App : Application
             ConfigureServices(services);
             _serviceProvider = services.BuildServiceProvider();
 
+            // Check if this is first run and show wizard if needed
+            CheckAndShowFirstRunWizard();
+
             // Hauptfenster anzeigen
             var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
             mainWindow.Show();
@@ -63,8 +66,8 @@ public partial class App : Application
         services.AddSingleton<OpenAIService>(sp =>
         {
             // Start with empty API key to avoid blocking on startup
-            // Using gpt-4o - the latest and most capable model
-            return new OpenAIService("", "gpt-4o");
+            // Using gpt-5.1 - the latest and most capable model for complex reasoning
+            return new OpenAIService("", "gpt-5.1");
         });
 
         // Export Services
@@ -76,6 +79,46 @@ public partial class App : Application
 
         // Windows
         services.AddTransient<MainWindow>();
+    }
+
+    private async void CheckAndShowFirstRunWizard()
+    {
+        try
+        {
+            var settingsService = _serviceProvider!.GetRequiredService<SettingsService>();
+            var connectionManager = _serviceProvider.GetRequiredService<ConnectionManager>();
+            
+            var settings = await settingsService.GetSettingsAsync();
+            var connections = await connectionManager.GetProfilesAsync();
+            var hasApiKey = !string.IsNullOrEmpty(settings.GetOpenAIApiKey());
+            var hasConnections = connections.Count > 0;
+
+            // Show first-run wizard if no API key and no connections
+            if (!hasApiKey && !hasConnections)
+            {
+                var wizard = new Dialogs.FirstRunWizard(settingsService, connectionManager);
+                if (wizard.ShowDialog() == true)
+                {
+                    // Apply API key if provided
+                    if (!string.IsNullOrEmpty(wizard.ApiKey))
+                    {
+                        settings.SetOpenAIApiKey(wizard.ApiKey);
+                        await settingsService.SaveSettingsAsync(settings);
+                        
+                        // Configure OpenAI service
+                        var openAIService = _serviceProvider.GetRequiredService<OpenAIService>();
+                        openAIService.Configure(wizard.ApiKey, settings.OpenAIModel);
+                    }
+
+                    // Connection is already saved by wizard
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log but don't block startup if wizard fails
+            System.Diagnostics.Debug.WriteLine($"First-run wizard error: {ex.Message}");
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)
